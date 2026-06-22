@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FGA @ Kepler</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/black.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/reveal.js@5/plugin/highlight/monokai.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Space+Grotesk:wght@400;500;600&family=Roboto:wght@300;400;500&family=Space+Mono&display=swap"
+    />
+    <style>
+      :root {
+        --bg: #101820;
+        --bg-light: #1a2430;
+        --accent: #edff00;
+        --gradient-start: #00d4aa;
+        --gradient-end: #edff00;
+        --heading: #ffffff;
+        --text: #d5d5d7;
+        --muted: #515f6a;
+        --citation: #b7b7b7;
+        --stat-box: #3b3f2b;
+      }
+
+      body {
+        background: var(--bg);
+      }
+
+      .reveal {
+        font-size: 32px;
+        font-family: "Roboto", system-ui, sans-serif;
+        font-weight: 300;
+        color: var(--text);
+      }
+
+      .reveal .slides {
+        text-align: left;
+      }
+
+      /* Gradient bar at top of each slide */
+      .reveal .slides section {
+        padding: 1.5em;
+        padding-bottom: 2.5em;
+        border-top: 3px solid;
+        border-image: linear-gradient(
+            to right,
+            var(--gradient-start),
+            var(--gradient-end)
+          )
+          1;
+      }
+
+      /* Headings — Playfair Display */
+      .reveal h1,
+      .reveal h2,
+      .reveal h3 {
+        font-family: "Playfair Display", serif;
+        font-weight: 700;
+        color: var(--heading);
+        text-transform: none;
+        letter-spacing: 0;
+        line-height: 1.2;
+        margin-bottom: 0.8em;
+      }
+
+      .reveal h1 {
+        font-size: 2.2em;
+      }
+
+      .reveal h2 {
+        font-size: 1.5em;
+      }
+
+      /* Subtitle / eyebrow text */
+      .reveal h1 + p,
+      .reveal section:first-child > p:first-of-type {
+        font-family: "Space Grotesk", sans-serif;
+        text-transform: uppercase;
+        font-size: 0.7em;
+        font-weight: 500;
+        color: var(--accent);
+        letter-spacing: 0.08em;
+      }
+
+      /* Body text */
+      .reveal p {
+        font-weight: 300;
+        line-height: 1.6;
+        margin-bottom: 0.6em;
+        color: var(--text);
+      }
+
+      /* Lists */
+      .reveal ul,
+      .reveal ol {
+        margin-left: 0.5em;
+      }
+
+      .reveal li {
+        font-weight: 300;
+        line-height: 1.8;
+        color: var(--text);
+        margin-bottom: 0.3em;
+      }
+
+      .reveal li strong {
+        color: var(--accent);
+        font-weight: 500;
+        font-family: "Space Grotesk", sans-serif;
+      }
+
+      /* Bold text in paragraphs */
+      .reveal p strong {
+        color: #fff;
+        font-weight: 500;
+      }
+
+      /* Table styling */
+      .reveal table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        margin: 1em 0;
+        font-size: 0.85em;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+
+      .reveal table th {
+        background: var(--stat-box);
+        color: var(--accent);
+        font-family: "Space Grotesk", sans-serif;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.85em;
+        letter-spacing: 0.05em;
+        padding: 0.7em 1em;
+        text-align: left;
+        border: none;
+      }
+
+      .reveal table td {
+        background: var(--bg-light);
+        padding: 0.6em 1em;
+        border-bottom: 1px solid rgba(81, 95, 106, 0.3);
+        color: var(--text);
+        border-left: none;
+        border-right: none;
+      }
+
+      .reveal table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .reveal table tr:nth-child(even) td {
+        background: rgba(26, 36, 48, 0.7);
+      }
+
+      /* Blockquotes */
+      .reveal blockquote {
+        background: none;
+        border-left: 4px solid var(--accent);
+        padding: 0.5em 1em;
+        font-family: "Playfair Display", serif;
+        font-style: normal;
+        font-size: 1.1em;
+        color: var(--heading);
+        box-shadow: none;
+        width: auto;
+        margin: 1em 0;
+      }
+
+      /* Code blocks */
+      .reveal pre {
+        width: 100%;
+        font-size: 0.55em;
+      }
+
+      .reveal code {
+        font-family: "Space Mono", monospace;
+      }
+
+      /* Inline code */
+      .reveal p code,
+      .reveal li code {
+        background: var(--bg-light);
+        padding: 0.1em 0.4em;
+        border-radius: 3px;
+        font-size: 0.9em;
+        color: var(--accent);
+      }
+
+      /* Progress bar — gradient */
+      .reveal .progress {
+        height: 3px;
+        color: var(--accent);
+      }
+
+      .reveal .progress span {
+        background: linear-gradient(
+          to right,
+          var(--gradient-start),
+          var(--gradient-end)
+        );
+      }
+
+      /* Controls */
+      .reveal .controls {
+        color: var(--accent);
+      }
+
+      /* Images — constrain height */
+      .reveal img {
+        max-height: 450px;
+      }
+
+      /* Mermaid diagrams — fit on slide */
+      .reveal .mermaid {
+        font-size: 0.55em;
+      }
+
+      .reveal .mermaid svg {
+        overflow: visible;
+      }
+
+      .reveal .mermaid foreignObject {
+        overflow: visible;
+      }
+
+      .reveal .mermaid foreignObject div {
+        overflow: visible;
+        padding-bottom: 4px;
+      }
+
+      /* Slide number — Kepler yellow */
+      .reveal .slide-number {
+        color: var(--accent);
+        font-size: 0.6em;
+        font-family: "Space Grotesk", sans-serif;
+        font-weight: 500;
+      }
+
+      /* Footer on every slide */
+      .reveal .slides::after {
+        content: "Confidential \00a9  Kepler Group LLC. All Rights Reserved";
+        position: fixed;
+        bottom: 12px;
+        left: 20px;
+        font-family: "Space Grotesk", sans-serif;
+        font-size: 9px;
+        color: var(--muted);
+        z-index: 10;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section
+          data-markdown="slides.md"
+          data-separator="^\n---\n"
+          data-separator-vertical="^\n--\n"
+          data-separator-notes="^Notes?:"
+        ></section>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/plugin/markdown/markdown.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/plugin/notes/notes.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/plugin/highlight/highlight.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js-mermaid-plugin@2/plugin/mermaid/mermaid.js"></script>
+    <script>
+      const v = (name) =>
+        getComputedStyle(document.documentElement)
+          .getPropertyValue(name)
+          .trim();
+
+      Reveal.initialize({
+        plugins: [RevealMarkdown, RevealNotes, RevealHighlight, RevealMermaid],
+        hash: true,
+        center: true,
+        slideNumber: true,
+        progress: true,
+        transition: "none",
+        backgroundTransition: "none",
+        mermaid: {
+          theme: "dark",
+          themeVariables: {
+            primaryColor: v("--stat-box"),
+            primaryTextColor: v("--text"),
+            primaryBorderColor: v("--accent"),
+            lineColor: v("--accent"),
+            secondaryColor: v("--bg-light"),
+            tertiaryColor: v("--bg"),
+            edgeLabelBackground: v("--bg-light"),
+            clusterBkg: v("--bg-light"),
+            clusterBorder: v("--muted"),
+          },
+        },
+      });
+    </script>
+  </body>
+</html>
