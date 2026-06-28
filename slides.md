@@ -34,7 +34,7 @@ This is what we'll be talking about today, and where we use OpenFGA.
 ## PBAC
 
 - Because Kepler is an agency working with clients, we have strict access control requirements per client.
-- In our core system, we used a PBAC (Policy-Based Access Control) model, similar to AWS IAM, which worked well in silo-ing out data per client.
+- In our core system, we used a PBAC (Policy-Based Access Control) model, similar to AWS IAM, which worked well for isolating data per client.
 - This required a separate policy for every type of access requirement.
 - This worked well for our core system, where access was static and defined once per app and client.
 
@@ -107,14 +107,168 @@ We evaluated several differenr tools, and chose OpenFGA for the following.
 
 ## The Downtime
 
-- New deployment of model
+30 minutes after a routine model deploy, our fga service went down and couldn't come back up.
 
 ---
 
 ### Background
 
+- 3 Pods
+- Small DB
+- No min / max configuration
+- No caching enabled
+- Defaults per pod: 30 max connections, unlimited concurrency
+
+Note:
+Hub is a young, pre-client beta. We deployed nimbly to move fast; infra was provisioned to get it running, not for production load.
 
 ---
 
-## Scaling
+```bash
+DATASTORE_MAX_OPEN_CONNS        = 30
+MAX_CONCURRENT_READS_FOR_CHECK  = unlimited (MaxUint32)
+CHECK_QUERY_CACHE_ENABLED       = false
+```
+
+Nothing throttles reads before they hit the pool.
+
+---
+
+### Event
+
+- All FGA pods crashing
+- Hub inaccessible to all users
+- Pods restarting in a loop
+
+---
+
+### Investigation
+
+- Pods were exhausting all available DB connections
+- Restart → instantly max out connections → crash, in a loop
+
+---
+
+### Root Cause
+
+1. Deployed a more complex model, which increased the number of connections needed for a check.
+
+---
+
+```rb
+type user
+
+type org
+  relations
+    define member: [user]
+    define user_in_context: [user]
+
+type app
+  relations
+    define org: [org]
+    define can_access: member from org and user_in_context from org
+
+type product
+  relations
+    define app: [app]
+    define org: [org]
+    define can_access: member from org and user_in_context from org and can_access from app
+```
+
+Note:
+`product.can_access` check is a nested AND
+
+---
+
+2. A batch check fired off a bunch of concurrent checks, which all needed connections.
+
+---
+
+```python
+async with OpenFgaClient(config) as client:
+    items = [
+        ClientBatchCheckItem(
+            user="user:u1",
+            relation="can_access",
+            object=f"product:p{i}",
+            contextual_tuples=[
+                ClientTuple("user:u1", "user_in_context", "org:o1")
+            ],
+        )
+        for i in range(1, 21)
+    ]
+    await asyncio.gather(
+        *(
+            client.batch_check(ClientBatchCheckRequest(items))
+            for _ in range(10)
+        )
+    )
+```
+
+---
+
+3. Each check explores its `AND` branches in parallel, every branch holding a connection.
+4. A parent can't release its connection until its children resolve, but the children can't get connections to resolve.
+
+---
+
+5. Deadlock!
+
+---
+
+6. Kubernetes healthcheck pinged the DB, couldn't get a connection, and failed.
+7. K8s killed the pod, it restarted, and the cycle repeated.
+
+---
+
+## Remediation
+
+---
+
+### Infra
+
+- Right-sized the DB: t4g.small → t4g.medium
+- Raised max DB connections per pod
+
+---
+
+### Config
+
+- Stable pool: min idle / min open connections
+- Capped concurrent reads per check
+- Enabled caching
+
+```bash
+DATASTORE_MIN_OPEN_CONNS
+DATASTORE_MIN_IDLE_CONNS
+MAX_CONCURRENT_READS_FOR_CHECK
+CHECK_QUERY_CACHE_ENABLED
+```
+
+Note:
+The pool settings just keep connections warm.
+The concurrency cap is to address the root cuase, so not that it now queues instead of deadlocking.
+
+---
+
+### Model
+
+- App access was re-checked for every product in the batch
+- Factored it out into a new relation that skips the app subtree
+- Check app access once per request, then batch the product checks
+
+Fewer nested checks, fewer connections.
+
+---
+
+### Model
+
+```diff
+ type product
+   relations
+     define app: [app]
+     define org: [org]
+-    define can_access: member from org and user_in_context from org and can_access from app
++    define can_access_within_app: member from org and user_in_context from org
+```
 
