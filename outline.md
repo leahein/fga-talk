@@ -55,3 +55,12 @@ define can_access_within_app: member from org and user_in_context from org
 ```
 
 You factored the expensive can_access from app subtree out of the per-product check so it can be evaluated once per request instead of once per product, then batch-check the cheaper relation across 30+ products (authz.py:1093 check_can_access_products). The model carries a comment explicitly flagging this as a pattern to apply "across the board." That's an interesting design tension to surface: the cleanest model isn't the cheapest model, and you're trading model purity for amortized check cost.
+
+## TODO Plan
+
+- What happened
+- Remediation
+--
+- Flesh out use cases
+- Flesh out remediation (see above)
+- Slides
