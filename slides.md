@@ -22,6 +22,15 @@ Kepler is a part of **Kyu**, a global network of agencies, including BIMM, Sid L
 
 ---
 
+## Before OpenFGA
+
+- Because Kepler is an agency working with clients, we have strict access control requirements per client.
+- In our core system, we used a PBAC (Policy-Based Access Control) model, similar to AWS IAM, which worked well for isolating data per client.
+- This required a separate policy for every type of access requirement.
+- This worked well for our core system, where access was static and defined once per app and client.
+
+---
+
 ### Kyu Hub
 
 An AI-powered platform designed for collaboration across Kyu companies.
@@ -31,23 +40,12 @@ This is what we'll be talking about today, and where we use OpenFGA.
 
 ---
 
-## PBAC
+- Kyu Hub is primarily a new platform where AI agents generate artifacts. 
+- These artifacts can be shared dynamically between users and work groups, and eventually across Kyu companies, for collaboration.
+- This required a more fine grained access control model, where access is defined by relationships between users and resources that change dynamically, rather than by static policies.
 
-- Because Kepler is an agency working with clients, we have strict access control requirements per client.
-- In our core system, we used a PBAC (Policy-Based Access Control) model, similar to AWS IAM, which worked well for isolating data per client.
-- This required a separate policy for every type of access requirement.
-- This worked well for our core system, where access was static and defined once per app and client.
 
----
-
-## ReBAC
-
-However, in Kyu Hub, we needed a more dynamic model, where data can be shared dynamically between users and work groups, as well as potentially across Kyu companies, for collaboration.
-
-This required a more fine grained model, where access is defined by relationships between users and resources, rather than static policies.
-
-TODO: Describe Hub
-
+Note:
 - Hub is a relatively new system, deployed nimbly, and not yet exposed to clients.
 
 ---
@@ -72,9 +70,13 @@ We evaluated several differenr tools, and chose OpenFGA for the following.
 
 ### CI/CD
 
+---
+
 #### Staging
 
 - Every developer gets a personal staging environment, which is a dynamically spun-up copy of the whole app. This also dynamically brings up a developer specific fga store, with the tuples seeded in our system, and assigns the user as the "admin" of that store.
+
+---
 
 #### Production
 
@@ -94,6 +96,16 @@ We evaluated several differenr tools, and chose OpenFGA for the following.
 
 ### Filter then BatchCheck vs ListObjects
 
+- Avoid using list operations
+- Use the app database to list the resources.
+- This can be done by filtering on the user's resource, or by filtering on the resource's visibility (public vs. private, etc.).
+- Use the query results t query to batch check the filtered resources
+- Infinite scroll + pagination allows us to limit checks per request.
+
+
+Note:
+For example, an artifact can be private, or it can be shared with everyone working on the client team (workspace). Whether it's public / private is stored in the app database.
+Once we query for that information, we then check fga.
 
 ---
 
@@ -102,6 +114,11 @@ We evaluated several differenr tools, and chose OpenFGA for the following.
 - Can access app
 - Member from org
 - Member from client
+
+Note:
+The model checks are designed so that a single check should return True / False for 
+everything that would be needed to access this resource. This can include: Access to
+the app, user membership in the org, user membership in the client, etc.
 
 ---
 
@@ -145,7 +162,7 @@ Nothing throttles reads before they hit the pool.
 ### Investigation
 
 - Pods were exhausting all available DB connections
-- Restart → instantly max out connections → crash, in a loop
+- Restart → instantly max out connections → crash → repeat
 
 ---
 
@@ -154,6 +171,8 @@ Nothing throttles reads before they hit the pool.
 1. Deployed a more complex model, which increased the number of connections needed for a check.
 
 ---
+
+#### Model
 
 ```rb
 type user
@@ -180,9 +199,13 @@ Note:
 
 ---
 
-2. A batch check fired off a bunch of concurrent checks, which all needed connections.
+2. A single request fired several concurrent batch checks, each fanning out into many checks, all needing connections.
+
+
 
 ---
+
+#### Check
 
 ```python
 async with OpenFgaClient(config) as client:
@@ -208,7 +231,22 @@ async with OpenFgaClient(config) as client:
 ---
 
 3. Each check explores its `AND` branches in parallel, every branch holding a connection.
-4. A parent can't release its connection until its children resolve, but the children can't get connections to resolve.
+4. Outer checks hold connections while blocked waiting on child checks. 
+
+---
+
+#### Configuration
+
+5. Since we haven't customized the configuration, it falls back to the defaults.
+
+```
+MAX_CONCURRENT_READS_FOR_CHECK: `math.MaxUint32` (unbounded)
+MAX_OPEN_CONNS: 30
+```
+
+---
+
+- We max out our connections and checks can't resolve before exceeding the deadline.
 
 ---
 
@@ -227,7 +265,7 @@ async with OpenFgaClient(config) as client:
 
 ### Infra
 
-- Right-sized the DB: t4g.small → t4g.medium
+- Right-sized the DB: `t4g.small` → `t4g.medium`
 - Raised max DB connections per pod
 
 ---
