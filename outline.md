@@ -45,14 +45,23 @@
 
 The k8s cascade on top of it is a nice second act: the health-check DB ping also can't acquire a connection, so the pod fails its probe, gets killed, restarts, re-maxes on the same fan-out, and loops. The failure mode of an undersized pool isn't graceful degradation — it's a crash loop. That's a concrete, reproducible lesson worth showing maintainers, possibly as a "model of sufficient complexity → watch it blow up" POC (which your outline already gestures at).
 
+### Inaccurate / Incomplete
+- **"Every branch holds a connection" (slide 231, outline:41):** overstated. In our model two of three AND operands hold zero connections — `user_in_context from org` is served from the contextual tuple in-memory (`CombinedTupleReader`); computed-userset and cache-hit branches hold none. Only tupleset reads (`org`, `app`) and the direct `member` lookup hit the pool, and only while actively reading rows — not for the branch's full lifetime. The "iterator's full lifetime" phrasing in outline:41 is imprecise: connection is held during row iteration, released on drain/Stop.
+- **"Deadlock!" (slide 251):** it's a timeout-cleared resource deadlock, not permanent. Every wait point respects context cancellation; the 3s request timeout releases connections (→ `deadline_exceeded`). Slides 247 and 251 slightly contradict — reconcile.
+- **`MAX_CONCURRENT_READS_FOR_CHECK` as "the fix" (slides 238/280):** sufficient for the minimal repro (empirically confirmed by README) — bounding reads breaks hold-and-wait, reads queue instead of deadlocking.
+  - Mechanism nuance: `BoundedTupleReader` releases its limiter slot via `defer b.done()` when the iterator is *returned*, while the pgx connection is acquired lazily on first `Next()` (`fetchBuffer`). Slot lifetime and connection lifetime are decoupled for streaming reads. So the cap works as a *concurrency throttle on how many checks enter their read phase at once*, not a hard cap on held connections. Under different batch/gather concurrency it's one lever, not a full connection guarantee.
+  - Also relevant: **`ResolveNodeBreadthLimit` (default 10):** bounds how many AND/OR branch goroutines run concurrently per node in a single check's resolution tree. Per-node, not global. (noted in outline above).
+  - Possibly relevant: **`MaxConcurrentChecksPerBatchCheck` (default 50):** bounds how many items in a single BatchCheck resolve at once. Does not affect the client-side `gather` of N RPCs.
+- **Model remediation (slides 291-309):** the diff removes `can_access from app` (fewer reads per product check). "Check app access once per request, then batch" is app-side logic, not the model change. Slide conflates the two.
+
 ## TODO Plan
 
 - What happened
 - Remediation
 - Flesh out use cases
 --
-- Flesh out remediation (see above) / accuracy
-- Very rough draft DONE
+- Flesh out remediation / accuracy (above)
+-> Very rough draft DONE
 - Flesh out each section
 - And Slides
 

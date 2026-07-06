@@ -242,8 +242,8 @@ async with OpenFgaClient(config) as client:
 5. Since we haven't customized the configuration, it falls back to the defaults.
 
 ```
-MAX_CONCURRENT_READS_FOR_CHECK: `math.MaxUint32` (unbounded)
 MAX_OPEN_CONNS: 30
+MAX_CONCURRENT_READS_FOR_CHECK: `math.MaxUint32` (unbounded)
 ```
 
 ---
@@ -287,7 +287,7 @@ CHECK_QUERY_CACHE_ENABLED
 
 Note:
 The pool settings just keep connections warm.
-The concurrency cap is to address the root cuase, so not that it now queues instead of deadlocking.
+The concurrency cap is so that it now queues reads instead of deadlocking.
 
 ---
 
