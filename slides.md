@@ -139,6 +139,8 @@ the app, user membership in the org, user membership in the client, etc.
 Note:
 Hub is a young, pre-client beta. We deployed nimbly to move fast; infra was provisioned to get it running, not for production load.
 
+Version: 1.15.1
+
 ---
 
 ```bash
@@ -218,12 +220,12 @@ async with OpenFgaClient(config) as client:
                 ClientTuple("user:u1", "user_in_context", "org:o1")
             ],
         )
-        for i in range(1, 21)
+        for i in range(1, 31)
     ]
     await asyncio.gather(
         *(
             client.batch_check(ClientBatchCheckRequest(items))
-            for _ in range(10)
+            for _ in range(15)
         )
     )
 ```
