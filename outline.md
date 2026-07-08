@@ -60,8 +60,8 @@ The k8s cascade on top of it is a nice second act: the health-check DB ping also
 - Remediation
 - Flesh out use cases
 --
-- Flesh out remediation / accuracy (above)
-  - Reproduce in app with max conns 30, direct can_access from app, and limit concurrent reads
+- Flesh out accuracy (above)
+- Update slides to reflect new fix
 -> Very rough draft DONE
 - Flesh out each section
 - And Slides
