@@ -22,51 +22,98 @@ Kepler is a part of **Kyu**, a global network of agencies, including BIMM, Sid L
 
 ---
 
-## Before OpenFGA
+## AuthZ @ Kepler
 
-- Because Kepler is an agency working with clients, we have strict access control requirements per client.
+---
+
+Because Kepler is an agency working with clients, we have strict access control requirements per client.
+
+---
+
 - In our core system, we used a PBAC (Policy-Based Access Control) model, similar to AWS IAM, which worked well for isolating data per client.
-- This required a separate policy for every type of access requirement.
-- This worked well for our core system, where access was static and defined once per app and client.
+- This requires a separate policy for every type of access requirement.
+- This works well for our core system, where access is static and defined once per app and client.
 
 ---
 
 ### Kyu Hub
 
-An AI-powered platform designed for collaboration across Kyu companies.
-
-Note:
-This is what we'll be talking about today, and where we use OpenFGA.
-
----
-
-- Kyu Hub is primarily a new platform where AI agents generate artifacts. 
-- These artifacts can be shared dynamically between users and work groups, and eventually across Kyu companies, for collaboration.
-- This required a more fine grained access control model, where access is defined by relationships between users and resources that change dynamically, rather than by static policies.
-
+An new AI-powered platform designed for collaboration across Kyu companies.
 
 Note:
 - Hub is a relatively new system, deployed nimbly, and not yet exposed to clients.
 
+
 ---
 
-### OpenFGA
 
-- **Solid Feature Set**: Complex model expressiveness, wildcard / public access,  caching, and datastore flexibility.
-- **Strong Developer Experience**: Excellent documentation with many examples and best practices, easy docker setup, and good tooling (local playground, CLI).
-- **Auth0 Alignment**: OpenFGA is backed by Auth0, which Kepler already uses for authentication, simplifying vendor management.
-- **Flexibility**: It offers a solid open-source offering and licence (Apache 2.0 license) for self-hosting, plus a managed option, giving us the flexibility to transition as our needs evolve.
-- **Active Community**: A CNCF project with an active Slack channel and responsive maintainers.
+- A platform where AI agents generate artifacts.
+- Artifacts can be shared dynamically between users and work groups, and eventually across Kyu companies, for collaboration.
+- User's access is determined by their relationship to the Kyu company, the client, and the resource. Resources can also be published and shared more broadly.
 
+---
+
+This requires a fine-grainted relationship-based access control model, rather than static policies.
+
+---
+
+### Why OpenFGA
 
 Note:
-We evaluated several differenr tools, and chose OpenFGA for the following.
+We evaluated several different tools, and chose OpenFGA for the following.
+
+---
+
+#### **Solid Feature Set**
+
+Complex model expressiveness, wildcard / public access,  caching, and datastore flexibility.
+
+---
+
+#### **Strong Developer Experience** 
+
+Excellent documentation with many examples and best practices, easy docker setup, and good tooling (local playground, CLI).
+
+---
+#### **Auth0 Alignment**
+
+OpenFGA is backed by Auth0, which Kepler already uses for authentication, simplifying vendor management.
+
+---
+
+#### **Flexibility**
+
+It offers a solid open-source offering and licence (Apache 2.0 license) for self-hosting, plus a managed option, giving us the flexibility to transition as our needs evolve.
+
+---
+
+#### **Active Community**
+
+A CNCF project with an active Slack channel and responsive maintainers.
 
 ---
 
 ## Use Cases
 
+Note:
+Some of the unique and custom ways we use OpenFGA at Kepler.
+
 ---
+
+### Multi-Org Users in Context
+
+Users can operate across multiople Kyu companies (orgs), such as Kepler and a sibling company.
+
+---
+
+- We leverage Auth0 Organizations, so that the user logs in to a specific organization
+- The organization is injected into their token claims.
+- Our system will extract it from the claims, and pass it into fga as a contextual tuple.
+- This ensures we always use the correct organization context for authorization checks, even if the user is a member of multiple organizations.
+- Note: Tests do not support contextual tuples yet.
+
+---
+
 
 ### CI/CD
 
@@ -74,51 +121,63 @@ We evaluated several differenr tools, and chose OpenFGA for the following.
 
 #### Staging
 
-- Every developer gets a personal staging environment, which is a dynamically spun-up copy of the whole app. This also dynamically brings up a developer specific fga store, with the tuples seeded in our system, and assigns the user as the "admin" of that store.
+Every developer gets a personal staging environment, which is a dynamically spun-up copy of the whole app. 
+
+---
+
+- Dynamically spin up a developer-specific fga store with the pre-requisite tuples 
+- Assign the developer as the "admin" user of that store so they get full access to test their changes.
 
 ---
 
 #### Production
 
-- On every deployment that includes a change to fga, we ensure the store is seeded with the necessary tuples, and that the model version gets updated.
+We split the model into **modules** per sub-app. A change to any module rolls out to every FGA-consuming sub-app.
 
 ---
 
-### Multi-Org Users in Context
+```mermaid
+flowchart TD
+    M["Edit an FGA module"] --> PR["CI detects & flags the FGA change"]
+    PR --> SCRIPT["Script applies model to FGA store"]
+    SCRIPT --> ID["FGA outputs new model ID"]
+    ID --> PIN["CI pins the model ID into the app configs"]
+    PIN --> ARGO["Argo CD (CD tool) rolls apps onto the new model"]
+```
 
-- Users can operate across organizations, such as being a part of Kepler or a parent company.
-- We leverage Auth0 Organizations, so that the user logs in to a specific organization, and that context is passed into their token.
-- Our system will extract the organization from the token, and pass that into fga as a contextual tuple.
-- This ensures we always use the correct organization context for authorization checks, even if the user is a member of multiple organizations.
-- Note: Tests do not support contextual tuples yet.
+Note:
+The model is split into modules, one per sub-app, but they compose into a single model, so a change to any module recomposes the whole thing. On PR, CI detects the FGA change and flags it so it goes to staging + QA first. On merge, the deploy pipeline runs the setup script, which applies the model and bootstraps tuples against the live FGA service. FGA versions the model and the script outputs the new model ID. CI grabs that ID and pins it into each app's configmap. Argo CD sees the changed config and rolls the apps onto the new mode, so every app resolves against the same version. This allows us to also roll back to a previous version of the model if needed.
 
 ---
 
-### Filter then BatchCheck vs ListObjects
+### ~~ListObjects~~ Filter then Batch Check
 
 - Avoid using list operations
-- Use the app database to list the resources.
-- This can be done by filtering on the user's resource, or by filtering on the resource's visibility (public vs. private, etc.).
-- Use the query results t query to batch check the filtered resources
-- Infinite scroll + pagination allows us to limit checks per request.
-
-
-Note:
-For example, an artifact can be private, or it can be shared with everyone working on the client team (workspace). Whether it's public / private is stored in the app database.
-Once we query for that information, we then check fga.
+- Instead, use the app database to list the resources first.
 
 ---
 
-### Each check covers everything
+#### How
 
-- Can access app
-- Member from org
-- Member from client
+- Filter on the user's resource, or by the resource's visibility (public vs. private, etc.).
+- Use the filtered results to batch check the resources
+- Pagination + infinite scroll allows us to limit the number of batch checks per request.
+
 
 Note:
-The model checks are designed so that a single check should return True / False for 
-everything that would be needed to access this resource. This can include: Access to
-the app, user membership in the org, user membership in the client, etc.
+For example, an artifact can be private, or it can be shared with everyone working on the client team. Whether it's public / private is stored in the app database.
+Once we query for that information, we then check fga to determine the user's relationship with the resource.
+
+---
+
+### Checks are Comprehensive
+
+Each check must answer whether the user has access to all pre-requisite checks.
+
+- **Example**: Can access app + Member from org + Member from client
+
+Note:
+For example, access to a resource must also require access to the overall app or feature that produced it.
 
 ---
 
@@ -144,12 +203,13 @@ Version: 1.15.1
 ---
 
 ```bash
-DATASTORE_MAX_OPEN_CONNS        = 30
-MAX_CONCURRENT_READS_FOR_CHECK  = unlimited (MaxUint32)
-CHECK_QUERY_CACHE_ENABLED       = false
+DATASTORE_MAX_OPEN_CONNS               = 30
+MAX_CONCURRENT_CHECKS_PER_BATCH_CHECK  = 50 (default)
+MAX_CONCURRENT_READS_FOR_CHECK         = unlimited (MaxUint32)
+CHECK_QUERY_CACHE_ENABLED              = false
 ```
 
-Nothing throttles reads before they hit the pool.
+One BatchCheck fans out into many concurrent checks, and nothing throttles reads before they hit the pool.
 
 ---
 
@@ -201,7 +261,7 @@ Note:
 
 ---
 
-2. A single request fired several concurrent batch checks, each fanning out into many checks, all needing connections.
+2. A single BatchCheck fanned out into many concurrent checks, all competing for the same pool.
 
 
 
@@ -210,30 +270,26 @@ Note:
 #### Check
 
 ```python
-async with OpenFgaClient(config) as client:
-    items = [
-        ClientBatchCheckItem(
-            user="user:u1",
-            relation="can_access",
-            object=f"product:p{i}",
-            contextual_tuples=[
-                ClientTuple("user:u1", "user_in_context", "org:o1")
-            ],
-        )
-        for i in range(1, 31)
-    ]
-    await asyncio.gather(
-        *(
-            client.batch_check(ClientBatchCheckRequest(items))
-            for _ in range(15)
-        )
+items = [
+    ClientBatchCheckItem(
+        user="user:u1",
+        relation="can_access",
+        object=f"product:p{i}",
+        contextual_tuples=[
+            ClientTuple("user:u1", "user_in_context", "org:o1")
+        ],
     )
+    for i in range(1, 101)
+]
+
+async with OpenFgaClient(config) as client:
+    await client.batch_check(ClientBatchCheckRequest(items))
 ```
 
 ---
 
-3. Each check explores its `AND` branches in parallel, every branch holding a connection.
-4. Outer checks hold connections while blocked waiting on child checks. 
+3. To resolve a relation, a check opens a DB cursor to read tuples, and holds that connection open while it dispatches child checks for what it finds.
+4. A parent check keeps its connection reserved while blocked on children that each need their own connection from the same pool.
 
 ---
 
@@ -243,6 +299,7 @@ async with OpenFgaClient(config) as client:
 
 ```
 MAX_OPEN_CONNS: 30
+MAX_CONCURRENT_CHECKS_PER_BATCH_CHECK: 50
 MAX_CONCURRENT_READS_FOR_CHECK: `math.MaxUint32` (unbounded)
 ```
 
@@ -252,12 +309,12 @@ MAX_CONCURRENT_READS_FOR_CHECK: `math.MaxUint32` (unbounded)
 
 ---
 
-5. Deadlock!
+6. The pool deadlocks.
 
 ---
 
-6. Kubernetes healthcheck pinged the DB, couldn't get a connection, and failed.
-7. K8s killed the pod, it restarted, and the cycle repeated.
+7. Kubernetes healthcheck pinged the DB, couldn't get a connection, and failed.
+8. K8s killed the pod, it restarted, and the cycle repeated.
 
 ---
 
