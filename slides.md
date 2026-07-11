@@ -104,13 +104,39 @@ Some of the unique and custom ways we use OpenFGA at Kepler.
 
 Users can operate across multiople Kyu companies (orgs), such as Kepler and a sibling company.
 
+We use a contextual tuple to ensure that the currently operating org is used for authorization checks.
+
 ---
+
+#### How
 
 - We leverage Auth0 Organizations, so that the user logs in to a specific organization
 - The organization is injected into their token claims.
 - Our system will extract it from the claims, and pass it into fga as a contextual tuple.
-- This ensures we always use the correct organization context for authorization checks, even if the user is a member of multiple organizations.
 - Note: Tests do not support contextual tuples yet.
+
+Note:
+- This ensures we always use the correct organization context for authorization checks, even if the user is a member of multiple organizations.
+
+---
+
+### ~~ListObjects~~ Filter then Batch Check
+
+- Avoid using list operations
+- Instead, use the app database to list the resources first.
+
+---
+
+#### How
+
+- Filter on the user's resource, or by the resource's visibility (public vs. private, etc.).
+- Use the filtered results to batch check resource access for the user.
+- Pagination via infinite scroll allows us to limit the number of batch checks per request.
+
+
+Note:
+For example, an artifact can be private, or it can be shared with everyone working on the client team. Whether it's public / private is stored in the app database.
+Once we query for that information, we then check fga to determine the user's relationship with the resource.
 
 ---
 
@@ -125,6 +151,8 @@ Every developer gets a personal staging environment, which is a dynamically spun
 
 ---
 
+#### How
+
 - Dynamically spin up a developer-specific fga store with the pre-requisite tuples 
 - Assign the developer as the "admin" user of that store so they get full access to test their changes.
 
@@ -132,41 +160,32 @@ Every developer gets a personal staging environment, which is a dynamically spun
 
 #### Production
 
-We split the model into **modules** per sub-app. A change to any module rolls out to every FGA-consuming sub-app.
+Hub is split into multiple apps. 
 
----
+We split the fga model into **modules** per app. 
 
-```mermaid
-flowchart TD
-    M["Edit an FGA module"] --> PR["CI detects & flags the FGA change"]
-    PR --> SCRIPT["Script applies model to FGA store"]
-    SCRIPT --> ID["FGA outputs new model ID"]
-    ID --> PIN["CI pins the model ID into the app configs"]
-    PIN --> ARGO["Argo CD (CD tool) rolls apps onto the new model"]
-```
-
-Note:
-The model is split into modules, one per sub-app, but they compose into a single model, so a change to any module recomposes the whole thing. On PR, CI detects the FGA change and flags it so it goes to staging + QA first. On merge, the deploy pipeline runs the setup script, which applies the model and bootstraps tuples against the live FGA service. FGA versions the model and the script outputs the new model ID. CI grabs that ID and pins it into each app's configmap. Argo CD sees the changed config and rolls the apps onto the new mode, so every app resolves against the same version. This allows us to also roll back to a previous version of the model if needed.
-
----
-
-### ~~ListObjects~~ Filter then Batch Check
-
-- Avoid using list operations
-- Instead, use the app database to list the resources first.
+A change to any module rolls out to every FGA-consuming app.
 
 ---
 
 #### How
 
-- Filter on the user's resource, or by the resource's visibility (public vs. private, etc.).
-- Use the filtered results to batch check the resources
-- Pagination + infinite scroll allows us to limit the number of batch checks per request.
+```mermaid
+flowchart LR
+    M[/"Edit an FGA module"/] --> PR[["CI detects & flags the FGA change"]]
+    PR --> SCRIPT["Script applies model"]
+    SCRIPT -- writes --> FGA[("OpenFGA store")]
+    FGA -- returns --> ID[/"New model ID"/]
+    ID --> PIN["CI pins the model ID into the app configs"]
+    PIN --> ARGO(["ArgoCD (CD tool)<br/>rolls apps onto the new model"])
 
+    SCRIPT ~~~ ID
+```
+
+TODO: Update diagram type!
 
 Note:
-For example, an artifact can be private, or it can be shared with everyone working on the client team. Whether it's public / private is stored in the app database.
-Once we query for that information, we then check fga to determine the user's relationship with the resource.
+The model is split into modules, one per sub-app, but they compose into a single model, so a change to any module recomposes the whole thing. On PR, CI detects the FGA change and flags it so it goes to staging + QA first. On merge, the deploy pipeline runs the setup script, which applies the model and bootstraps tuples against the live FGA service. FGA versions the model and the script outputs the new model ID. CI grabs that ID and pins it into each app's configmap. Argo CD sees the changed config and rolls the apps onto the new mode, so every app resolves against the same version. This allows us to also roll back to a previous version of the model if needed.
 
 ---
 
@@ -174,14 +193,30 @@ Once we query for that information, we then check fga to determine the user's re
 
 Each check must answer whether the user has access to all pre-requisite checks.
 
-- **Example**: Can access app + Member from org + Member from client
-
 Note:
 For example, access to a resource must also require access to the overall app or feature that produced it.
 
 ---
 
-## The Downtime
+#### How
+
+**Example**: Can access artifact + app + client
+
+```rb
+type artifact
+  relations
+    define app: [app]
+    define client: [client]
+    define owner: [user]
+    define can_read: owner and can_access from app and can_access from client
+
+---
+
+## The Incident
+
+Note: Let's talk about a time when the above principle contributed to an outage.
+
+---
 
 30 minutes after a routine model deploy, our fga service went down and couldn't come back up.
 
@@ -189,27 +224,22 @@ For example, access to a resource must also require access to the overall app or
 
 ### Background
 
-- 3 Pods
-- Small DB
-- No min / max configuration
-- No caching enabled
-- Defaults per pod: 30 max connections, unlimited concurrency
+- **Pods**: 3
+- **DB Size**: Small
+- **Configuration**: Default
+
+```bash
+DATASTORE_MAX_OPEN_CONNS               = 30
+MAX_CONCURRENT_CHECKS_PER_BATCH_CHECK  = 50
+MAX_CONCURRENT_READS_FOR_CHECK         = unlimited (MaxUint32)
+CHECK_QUERY_CACHE_ENABLED              = false
+```
 
 Note:
 Hub is a young, pre-client beta. We deployed nimbly to move fast; infra was provisioned to get it running, not for production load.
 
 Version: 1.15.1
 
----
-
-```bash
-DATASTORE_MAX_OPEN_CONNS               = 30
-MAX_CONCURRENT_CHECKS_PER_BATCH_CHECK  = 50 (default)
-MAX_CONCURRENT_READS_FOR_CHECK         = unlimited (MaxUint32)
-CHECK_QUERY_CACHE_ENABLED              = false
-```
-
-One BatchCheck fans out into many concurrent checks, and nothing throttles reads before they hit the pool.
 
 ---
 
@@ -224,7 +254,7 @@ One BatchCheck fans out into many concurrent checks, and nothing throttles reads
 ### Investigation
 
 - Pods were exhausting all available DB connections
-- Restart → instantly max out connections → crash → repeat
+- Restart → instantly max out connections → crash → loop
 
 ---
 
@@ -256,6 +286,8 @@ type product
     define can_access: member from org and user_in_context from org and can_access from app
 ```
 
+TODO: Update product to artifact
+
 Note:
 `product.can_access` check is a nested AND
 
@@ -263,7 +295,8 @@ Note:
 
 2. A single BatchCheck fanned out into many concurrent checks, all competing for the same pool.
 
-
+Note:
+One BatchCheck fans out into many concurrent checks, and nothing throttles reads before they hit the pool.
 
 ---
 
@@ -343,8 +376,8 @@ CHECK_QUERY_CACHE_ENABLED
 ```
 
 Note:
+Basically, follow fga best practices for production config.
 The pool settings just keep connections warm.
-The concurrency cap is so that it now queues reads instead of deadlocking.
 
 ---
 
