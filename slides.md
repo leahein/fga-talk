@@ -6,8 +6,9 @@
 
 Understand the use of OpenFGA at Kepler.
 
-- Why we use it
+Note:
 - Where we use it
+- Why we use it
 - How we use it
 - What we learned from using it
 
@@ -174,21 +175,26 @@ A change to any module rolls out to every FGA-consuming app.
 #### How
 
 ```mermaid
-flowchart LR
-    M[/"Edit an FGA module"/] --> PR[["CI detects & flags the FGA change"]]
-    PR --> SCRIPT["Script applies model"]
-    SCRIPT -- writes --> FGA[("OpenFGA store")]
-    FGA -- returns --> ID[/"New model ID"/]
-    ID --> PIN["CI pins the model ID into the app configs"]
-    PIN --> ARGO(["ArgoCD (CD tool)<br/>rolls apps onto the new model"])
+sequenceDiagram
+    participant CI as CI (GitHub Actions)
+    participant FGA as OpenFGA
+    participant CD as CD (ArgoCD)
+    participant App as Hub apps
 
-    SCRIPT ~~~ ID
+    Note over CI: Edit an FGA module
+    App->>FGA: authorization checks (old model)
+    CI->>CI: run FGA model tests
+    CI->>FGA: apply updated model
+    FGA-->>CI: new model ID
+    CI->>CD: pin model ID in app configs (kustomize)
+    CD->>App: detects change, rolls apps onto new model
+    App->>FGA: authorization checks (new model)
 ```
 
-TODO: Update diagram type!
-
 Note:
-The model is split into modules, one per sub-app, but they compose into a single model, so a change to any module recomposes the whole thing. On PR, CI detects the FGA change and flags it so it goes to staging + QA first. On merge, the deploy pipeline runs the setup script, which applies the model and bootstraps tuples against the live FGA service. FGA versions the model and the script outputs the new model ID. CI grabs that ID and pins it into each app's configmap. Argo CD sees the changed config and rolls the apps onto the new mode, so every app resolves against the same version. This allows us to also roll back to a previous version of the model if needed.
+The model is split into modules, one per sub-app, but they compose into a single model, so a change to any module recomposes the whole thing. On PR, CI detects the FGA change and flags it. On deploy, the pipeline runs the setup script, which applies the model and bootstraps tuples against the live FGA service. FGA versions the model and the script outputs the new model ID. CI grabs that ID and uses kustomize to pin it into each app's configmap, then commits that to our config repo. This is where ArgoCD comes in: it watches that repo, and when it sees the changed config it syncs the cluster and rolls the apps onto the new model, so every app resolves against the same version. 
+
+This allows us to also roll back to a previous version of the model if needed.
 
 ---
 
