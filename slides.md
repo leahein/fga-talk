@@ -2,11 +2,14 @@
 
 ---
 
-## Goal
+## Summary
 
-Understand the past, present, and future use of OpenFGA at Kepler Group.
+Understand the use of OpenFGA at Kepler.
 
-TODO: Weave into story
+- Why we use it
+- Where we use it
+- How we use it
+- What we learned from using it
 
 ---
 
@@ -222,6 +225,14 @@ Note: Let's talk about a time when the above principle contributed to an outage.
 
 ---
 
+### Event
+
+- Hub inaccessible to all users
+- All FGA pods crashing
+- Pods restarting in a loop
+
+---
+
 ### Background
 
 - **Pods**: 3
@@ -235,19 +246,10 @@ MAX_CONCURRENT_READS_FOR_CHECK         = unlimited (MaxUint32)
 CHECK_QUERY_CACHE_ENABLED              = false
 ```
 
+_Version: 1.15.1_
+
 Note:
 Hub is a young, pre-client beta. We deployed nimbly to move fast; infra was provisioned to get it running, not for production load.
-
-Version: 1.15.1
-
-
----
-
-### Event
-
-- All FGA pods crashing
-- Hub inaccessible to all users
-- Pods restarting in a loop
 
 ---
 
@@ -258,7 +260,9 @@ Version: 1.15.1
 
 ---
 
-### Root Cause
+### Causal Chain
+
+---
 
 1. Deployed a more complex model, which increased the number of connections needed for a check.
 
@@ -293,10 +297,7 @@ Note:
 
 ---
 
-2. A single BatchCheck fanned out into many concurrent checks, all competing for the same pool.
-
-Note:
-One BatchCheck fans out into many concurrent checks, and nothing throttles reads before they hit the pool.
+2. A BatchCheck fanned out into many concurrent checks, all competing for the same pool.
 
 ---
 
@@ -321,15 +322,21 @@ async with OpenFgaClient(config) as client:
 
 ---
 
-3. To resolve a relation, a check opens a DB cursor to read tuples, and holds that connection open while it dispatches child checks for what it finds.
-4. A parent check keeps its connection reserved while blocked on children that each need their own connection from the same pool.
+#### Check Resolution
+
+3. To resolve a relation, a check opens a DB cursor to read tuples, and holds that connection open while it dispatches child checks to resolve the nested relations.
+
+A parent check keeps its connection reserved while blocked on children that each need their own connection from the same pool.
+
+Note:
+Each check therefore holds several connections at once (its own cursor plus every child it's waiting on).
 
 ---
 
-#### Configuration
+4. The pool empties, and checks are stuck holding a connection while waiting on a child that can't get one.
 
-5. Since we haven't customized the configuration, it falls back to the defaults.
-
+Note:
+Since we hadn't customized the configuration, it used the defaults.
 ```
 MAX_OPEN_CONNS: 30
 MAX_CONCURRENT_CHECKS_PER_BATCH_CHECK: 50
@@ -338,16 +345,22 @@ MAX_CONCURRENT_READS_FOR_CHECK: `math.MaxUint32` (unbounded)
 
 ---
 
-- We max out our connections and checks can't resolve before exceeding the deadline.
+5. The pool deadlocks.
+
+Note:
+At this point, checks fail since they time out by exceeding the request deadline.
 
 ---
 
-6. The pool deadlocks.
+6. Kubernetes healthcheck pinged the DB, couldn't get a connection, and failed.
 
 ---
 
-7. Kubernetes healthcheck pinged the DB, couldn't get a connection, and failed.
-8. K8s killed the pod, it restarted, and the cycle repeated.
+7. A failing healtcheck caused Kubernetes to kill the unhealthy pods and restart it.
+
+---
+
+The cycle repeats.
 
 ---
 
@@ -364,14 +377,15 @@ MAX_CONCURRENT_READS_FOR_CHECK: `math.MaxUint32` (unbounded)
 
 ### Config
 
-- Stable pool: min idle / min open connections
-- Capped concurrent reads per check
+- Stable pool: Set min idle / min open database connections
+- Capped concurrent checks
 - Enabled caching
 
 ```bash
 DATASTORE_MIN_OPEN_CONNS
 DATASTORE_MIN_IDLE_CONNS
 MAX_CONCURRENT_READS_FOR_CHECK
+MAX_CONCURRENT_CHECKS_PER_BATCH_CHECK
 CHECK_QUERY_CACHE_ENABLED
 ```
 
@@ -383,9 +397,9 @@ The pool settings just keep connections warm.
 
 ### Model
 
-- App access was re-checked for every product in the batch
+- App access was re-checked for every resource in a batch check
 - Factored it out into a new relation that skips the app subtree
-- Check app access once per request, then batch the product checks
+- Check app access once per request, then batch the resource checks
 
 Fewer nested checks, fewer connections.
 
@@ -402,3 +416,14 @@ Fewer nested checks, fewer connections.
 +    define can_access_within_app: member from org and user_in_context from org
 ```
 
+---
+
+### Result
+
+- Lower check latency
+- Fewer DB connections per check / batch check
+- Cache absorbing repeat checks
+
+---
+
+## Q&A
