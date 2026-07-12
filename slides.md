@@ -34,7 +34,7 @@ Because Kepler is an agency working with clients, we have strict access control 
 
 ---
 
-- In our core system, we used a PBAC (Policy-Based Access Control) model, similar to AWS IAM, which worked well for isolating data per client.
+- In our core system, we used a PBAC (Policy-Based Access Control) model, similar to AWS IAM, which works well for isolating data per client.
 - This requires a separate policy for every type of access requirement.
 - This works well for our core system, where access is static and defined once per app and client.
 
@@ -61,41 +61,41 @@ This requires a fine-grainted relationship-based access control model, rather th
 
 ---
 
-### Why OpenFGA
+<!-- ### Why OpenFGA --> 
 
-Note:
-We evaluated several different tools, and chose OpenFGA for the following.
+<!-- Note: -->
+<!-- We evaluated several different tools, and chose OpenFGA for the following. -->
 
----
+<!-- --- -->
 
-#### **Solid Feature Set**
+<!-- #### **Solid Feature Set** -->
 
-Complex model expressiveness, wildcard / public access,  caching, and datastore flexibility.
+<!-- Complex model expressiveness, wildcard / public access,  caching, and datastore flexibility. -->
 
----
+<!-- --- -->
 
-#### **Strong Developer Experience** 
+<!-- #### **Strong Developer Experience** --> 
 
-Excellent documentation with many examples and best practices, easy docker setup, and good tooling (local playground, CLI).
+<!-- Excellent documentation with many examples and best practices, easy docker setup, and good tooling (local playground, CLI). -->
 
----
-#### **Auth0 Alignment**
+<!-- --- -->
+<!-- #### **Auth0 Alignment** -->
 
-OpenFGA is backed by Auth0, which Kepler already uses for authentication, simplifying vendor management.
+<!-- OpenFGA is backed by Auth0, which Kepler already uses for authentication, simplifying vendor management. -->
 
----
+<!-- --- -->
 
-#### **Flexibility**
+<!-- #### **Flexibility** -->
 
-It offers a solid open-source offering and licence (Apache 2.0 license) for self-hosting, plus a managed option, giving us the flexibility to transition as our needs evolve.
+<!-- It offers a solid open-source offering and licence (Apache 2.0 license) for self-hosting, plus a managed option, giving us the flexibility to transition as our needs evolve. -->
 
----
+<!-- --- -->
 
-#### **Active Community**
+<!-- #### **Active Community** -->
 
-A CNCF project with an active Slack channel and responsive maintainers.
+<!-- A CNCF project with an active Slack channel and responsive maintainers. -->
 
----
+<!-- --- -->
 
 ## Use Cases
 
@@ -124,18 +124,21 @@ Note:
 
 ---
 
-### ~~ListObjects~~ Filter then Batch Check
+### ~~List Objects~~ Filter then Batch Check
 
 - Avoid using list operations
 - Instead, use the app database to list the resources first.
+
+Note:
+Initially we listed the objects in fga first, but requests were exceeding the default list limits.
 
 ---
 
 #### How
 
 - Filter on the user's resource, or by the resource's visibility (public vs. private, etc.).
-- Use the filtered results to batch check resource access for the user.
-- Pagination via infinite scroll allows us to limit the number of batch checks per request.
+- Use the filtered results to batch check access against fga.
+- Limit the number of checks per batch checks via pagination in the ui (via infinite scroll).
 
 
 Note:
@@ -179,6 +182,7 @@ sequenceDiagram
     participant CI as CI (GitHub Actions)
     participant FGA as OpenFGA
     participant CD as CD (ArgoCD)
+    participant K8s as Kubernetes
     participant App as Hub apps
 
     Note over CI: Edit an FGA module
@@ -187,7 +191,8 @@ sequenceDiagram
     CI->>FGA: apply updated model
     FGA-->>CI: new model ID
     CI->>CD: pin model ID in app configs (kustomize)
-    CD->>App: detects change, rolls apps onto new model
+    CD->>K8s: apply changed config
+    K8s->>App: restart pods on new model
     App->>FGA: authorization checks (new model)
 ```
 
@@ -339,7 +344,7 @@ Each check therefore holds several connections at once (its own cursor plus ever
 
 ---
 
-4. The pool empties, and checks are stuck holding a connection while waiting on a child that can't get one.
+4. The pool emptied, and checks were stuck holding a connection while waiting on a child that couldn't get one.
 
 Note:
 Since we hadn't customized the configuration, it used the defaults.
@@ -359,6 +364,9 @@ At this point, checks fail since they time out by exceeding the request deadline
 ---
 
 6. Kubernetes healthcheck pinged the DB, couldn't get a connection, and failed.
+
+Note:
+In the meantime --
 
 ---
 
@@ -393,6 +401,8 @@ DATASTORE_MIN_IDLE_CONNS
 MAX_CONCURRENT_READS_FOR_CHECK
 MAX_CONCURRENT_CHECKS_PER_BATCH_CHECK
 CHECK_QUERY_CACHE_ENABLED
+CHECK_ITERATOR_CACHE_ENABLED
+LIST_OBJECTS_ITERATOR_CACHE_ENABLED
 ```
 
 Note:
@@ -403,11 +413,14 @@ The pool settings just keep connections warm.
 
 ### Model
 
-- App access was re-checked for every resource in a batch check
+- App access was re-checked for every object in a batch check
 - Factored it out into a new relation that skips the app subtree
-- Check app access once per request, then batch the resource checks
+- Check app access once per request, then batch the object checks
 
 Fewer nested checks, fewer connections.
+
+Note:
+Also, for any repeated check branches across batch checks, the cache will absorb them.
 
 ---
 
@@ -424,7 +437,7 @@ Fewer nested checks, fewer connections.
 
 ---
 
-### Result
+### Results
 
 - Lower check latency
 - Fewer DB connections per check / batch check
