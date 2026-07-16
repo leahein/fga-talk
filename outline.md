@@ -49,11 +49,13 @@ The k8s cascade on top of it is a nice second act: the health-check DB ping also
 - Flesh out each section
 - And Slides
 - Diagram
--> draft DONE
---
-- Throughline! Weave full story
+- draft DONE
 - Downtime Model + Check (product -> artifact), @fga-max-conns
+--
+-> Throughline! Weave full story
+- Images??
 - Practice
+- Time it
 
 
 ### Considerations
