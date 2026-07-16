@@ -14,6 +14,14 @@ Note:
 
 ---
 
+### Leah Einhorn
+
+Principal Software Engineer @ Kepler
+
+Authentication & Authorization
+
+---
+
 ## Kepler Group
 
 A digital marketing agency.
@@ -222,7 +230,7 @@ type artifact
     define app: [app]
     define client: [client]
     define owner: [user]
-    define can_read: owner and can_access from app and can_access from client
+    define can_access: owner and can_access from app and can_access from client
 
 ---
 
@@ -294,17 +302,15 @@ type app
     define org: [org]
     define can_access: member from org and user_in_context from org
 
-type product
+type artifact
   relations
     define app: [app]
     define org: [org]
     define can_access: member from org and user_in_context from org and can_access from app
 ```
 
-TODO: Update product to artifact
-
 Note:
-`product.can_access` check is a nested AND
+`artifact.can_access` check is a nested AND
 
 ---
 
@@ -319,7 +325,7 @@ items = [
     ClientBatchCheckItem(
         user="user:u1",
         relation="can_access",
-        object=f"product:p{i}",
+        object=f"artifact:p{i}",
         contextual_tuples=[
             ClientTuple("user:u1", "user_in_context", "org:o1")
         ],
@@ -427,13 +433,19 @@ Also, for any repeated check branches across batch checks, the cache will absorb
 ### Model
 
 ```diff
- type product
+ type artifact
    relations
      define app: [app]
      define org: [org]
 -    define can_access: member from org and user_in_context from org and can_access from app
 +    define can_access_within_app: member from org and user_in_context from org
 ```
+
+---
+
+### Minimal Reproduction
+
+github.com/leahein/fga-max-conns
 
 ---
 
