@@ -27,6 +27,7 @@
         --accent: #edff00;
         --gradient-start: #00d4aa;
         --gradient-end: #edff00;
+        --diagram-line: #76ea55;
         --heading: #ffffff;
         --text: #d5d5d7;
         --muted: #515f6a;
@@ -233,9 +234,17 @@
         max-height: 450px;
       }
 
-      /* Mermaid diagrams — fit on slide */
-      .reveal .mermaid {
-        font-size: 0.55em;
+      /* reveal clips pre code. Undo for mermaid code block so the diagram isn't cut off. */
+      .reveal pre.code-wrapper:has(.mermaid),
+      .reveal pre code.mermaid {
+        max-height: none;
+        overflow: visible;
+      }
+
+      /* Give mermaid slides more room by trimming section padding */
+      .reveal .slides section:has(.mermaid) {
+        top: 20px !important;
+        transform: none;
       }
 
       .reveal .mermaid svg {
@@ -314,14 +323,14 @@
             edgeLabelBackground: v("--bg-light"),
             clusterBkg: v("--bg-light"),
             clusterBorder: v("--muted"),
-            noteBkgColor: v("--gradient-start"),
+            noteBkgColor: v("--diagram-line"),
             noteTextColor: v("--bg"),
-            noteBorderColor: v("--gradient-start"),
+            noteBorderColor: v("--diagram-line"),
             actorBkg: v("--bg-light"),
             actorBorder: v("--accent"),
             actorTextColor: v("--text"),
-            actorLineColor: v("--muted"),
-            signalColor: v("--text"),
+            actorLineColor: v("--gradient-start"),
+            signalColor: v("--gradient-start"),
             signalTextColor: v("--text"),
           },
         },
