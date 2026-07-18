@@ -4,13 +4,14 @@
 
 ## Summary
 
-Understand the use of OpenFGA at Kepler.
+- Understand Kepler + AuthZ requirements
+- Understand the use of OpenFGA at Kepler
+- What we learned
 
 Note:
-- Where we use it
-- Why we use it
-- How we use it
-- What we learned from using it
+- Kepler as a company and its unique authz requirements
+- Understand the interesting ways we use it
+- A bit of a war story and what we learned from it and how we remediated it.
 
 ---
 
@@ -61,49 +62,16 @@ Note:
 
 - A platform where AI agents generate artifacts.
 - Artifacts can be shared dynamically between users and work groups, and eventually across Kyu companies, for collaboration.
-- User's access is determined by their relationship to the Kyu company, the client, and the resource. Resources can also be published and shared more broadly.
+- User's access is determined by their relationship to the Kyu company, the client, and the resource.
 
 ---
 
-This requires a fine-grainted relationship-based access control model, rather than static policies.
+This requires a fine-grained relationship-based access control model, rather than static policies. 
+
+Note:
+**This is where OpenFGA comes in!**
 
 ---
-
-<!-- ### Why OpenFGA --> 
-
-<!-- Note: -->
-<!-- We evaluated several different tools, and chose OpenFGA for the following. -->
-
-<!-- --- -->
-
-<!-- #### **Solid Feature Set** -->
-
-<!-- Complex model expressiveness, wildcard / public access,  caching, and datastore flexibility. -->
-
-<!-- --- -->
-
-<!-- #### **Strong Developer Experience** --> 
-
-<!-- Excellent documentation with many examples and best practices, easy docker setup, and good tooling (local playground, CLI). -->
-
-<!-- --- -->
-<!-- #### **Auth0 Alignment** -->
-
-<!-- OpenFGA is backed by Auth0, which Kepler already uses for authentication, simplifying vendor management. -->
-
-<!-- --- -->
-
-<!-- #### **Flexibility** -->
-
-<!-- It offers a solid open-source offering and licence (Apache 2.0 license) for self-hosting, plus a managed option, giving us the flexibility to transition as our needs evolve. -->
-
-<!-- --- -->
-
-<!-- #### **Active Community** -->
-
-<!-- A CNCF project with an active Slack channel and responsive maintainers. -->
-
-<!-- --- -->
 
 ## Use Cases
 
@@ -114,7 +82,7 @@ Some of the unique and custom ways we use OpenFGA at Kepler.
 
 ### Multi-Org Users in Context
 
-Users can operate across multiople Kyu companies (orgs), such as Kepler and a sibling company.
+Users can operate across multiple Kyu companies (orgs), such as Kepler and a sibling company.
 
 We use a contextual tuple to ensure that the currently operating org is used for authorization checks.
 
@@ -134,7 +102,7 @@ Note:
 
 ### ~~List Objects~~ Filter then Batch Check
 
-- Avoid using list operations
+- Avoid using list operations, which are expensive.
 - Instead, use the app database to list the resources first.
 
 Note:
@@ -146,7 +114,7 @@ Initially we listed the objects in fga first, but requests were exceeding the de
 
 - Filter on the user's resource, or by the resource's visibility (public vs. private, etc.).
 - Use the filtered results to batch check access against fga.
-- Limit the number of checks per batch checks via pagination in the ui (via infinite scroll).
+- Limit the number of checks per batch checks via database pagination.
 
 
 Note:
@@ -156,30 +124,29 @@ Once we query for that information, we then check fga to determine the user's re
 ---
 
 
+<!-- #### Staging -->
+
+<!-- Every developer gets a personal staging environment, which is a dynamically spun-up copy of the whole app. --> 
+
+<!-- --- -->
+
+<!-- #### How -->
+
+<!-- - Dynamically spin up a developer-specific fga store with the pre-requisite tuples --> 
+<!-- - Assign the developer as the "admin" user of that store so they get full access to test their changes. -->
+
+<!-- --- -->
+
 ### CI/CD
 
----
-
-#### Staging
-
-Every developer gets a personal staging environment, which is a dynamically spun-up copy of the whole app. 
-
----
-
-#### How
-
-- Dynamically spin up a developer-specific fga store with the pre-requisite tuples 
-- Assign the developer as the "admin" user of that store so they get full access to test their changes.
-
----
-
-#### Production
-
-Hub is split into multiple apps. 
+Hub is developed across multiple sub-apps. 
 
 We split the fga model into **modules** per app. 
 
 A change to any module rolls out to every FGA-consuming app.
+
+Note:
+The model is split into modules, one per sub-app, but they compose into a single model, so a change to any module changes the model, which must then be rolled out to every app.
 
 ---
 
@@ -198,16 +165,21 @@ sequenceDiagram
     CI->>CI: run FGA model tests
     CI->>FGA: apply updated model
     FGA-->>CI: new model ID
-    CI->>CD: pin model ID in app configs (kustomize)
+    CI->>CD: pin model ID in app configs
     CD->>K8s: apply changed config
     K8s->>App: restart pods on new model
     App->>FGA: authorization checks (new model)
 ```
 
 Note:
-The model is split into modules, one per sub-app, but they compose into a single model, so a change to any module recomposes the whole thing. On PR, CI detects the FGA change and flags it. On deploy, the pipeline runs the setup script, which applies the model and bootstraps tuples against the live FGA service. FGA versions the model and the script outputs the new model ID. CI grabs that ID and uses kustomize to pin it into each app's configmap, then commits that to our config repo. This is where ArgoCD comes in: it watches that repo, and when it sees the changed config it syncs the cluster and rolls the apps onto the new model, so every app resolves against the same version. 
+- On PR, CI detects the FGA change and flags it.
+- On deploy, the pipeline runs the setup script, which applies the model and bootstraps tuples against the live FGA service.
+- FGA versions the model and the script outputs the new model ID.
+- CI grabs that ID pins it into each app's configmap (using kustomize), then commits that to our config repo.
+- This is where ArgoCD comes in: it watches that repo, and when it sees the changed config it applies it to the Kubernetes cluster.
+- Kubernetes then restarts the pods so they use the new model, and every app resolves against the same version.
 
-This allows us to also roll back to a previous version of the model if needed.
+- **This allows us to also roll back to a previous version of the model if needed.**
 
 ---
 
@@ -240,11 +212,9 @@ Note: Let's talk about a time when the above principle contributed to an outage.
 
 ---
 
-30 minutes after a routine model deploy, our fga service went down and couldn't come back up.
-
----
-
 ### Event
+
+30 minutes after a routine model deploy, our fga service went down and couldn't come back up.
 
 - Hub inaccessible to all users
 - All FGA pods crashing
@@ -252,11 +222,20 @@ Note: Let's talk about a time when the above principle contributed to an outage.
 
 ---
 
-### Background
+### Investigation
+
+- Pods were exhausting all available DB connections
+- Restart → instantly max out connections → crash → loop
+
+---
+
+### State
 
 - **Pods**: 3
 - **DB Size**: Small
 - **Configuration**: Default
+
+---
 
 ```bash
 DATASTORE_MAX_OPEN_CONNS               = 30
@@ -268,14 +247,9 @@ CHECK_QUERY_CACHE_ENABLED              = false
 _Version: 1.15.1_
 
 Note:
-Hub is a young, pre-client beta. We deployed nimbly to move fast; infra was provisioned to get it running, not for production load.
+Just to understand the current state:
 
----
-
-### Investigation
-
-- Pods were exhausting all available DB connections
-- Restart → instantly max out connections → crash → loop
+We deployed nimbly to move fast; infra was provisioned to get it running, not for production load.
 
 ---
 
@@ -369,18 +343,25 @@ At this point, checks fail since they time out by exceeding the request deadline
 
 ---
 
-6. Kubernetes healthcheck pinged the DB, couldn't get a connection, and failed.
+6. 
+
+- Kubernetes healthcheck pinged the DB.
+- Healthcheck couldn't obtain a connection.
+- Healthcheck failed.
 
 Note:
 In the meantime --
 
 ---
 
-7. A failing healtcheck caused Kubernetes to kill the unhealthy pods and restart it.
+7. This caused Kubernetes to kill the unhealthy pods and restart it.
 
 ---
 
-The cycle repeats.
+<div style="text-align: center; font-size: 4em">🔄</div>
+
+Note:
+The cycle repeats
 
 ---
 
@@ -393,6 +374,9 @@ The cycle repeats.
 - Right-sized the DB: `t4g.small` → `t4g.medium`
 - Raised max DB connections per pod
 
+Note:
+Larger DB instance gives us more connections, allowing us to raise the max db conns config.
+
 ---
 
 ### Config
@@ -404,8 +388,10 @@ The cycle repeats.
 ```bash
 DATASTORE_MIN_OPEN_CONNS
 DATASTORE_MIN_IDLE_CONNS
+
 MAX_CONCURRENT_READS_FOR_CHECK
 MAX_CONCURRENT_CHECKS_PER_BATCH_CHECK
+
 CHECK_QUERY_CACHE_ENABLED
 CHECK_ITERATOR_CACHE_ENABLED
 LIST_OBJECTS_ITERATOR_CACHE_ENABLED
@@ -445,7 +431,7 @@ Also, for any repeated check branches across batch checks, the cache will absorb
 
 ### Minimal Reproduction
 
-github.com/leahein/fga-max-conns
+https://github.com/leahein/fga-max-conns
 
 ---
 
