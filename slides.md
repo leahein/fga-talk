@@ -41,6 +41,9 @@ Kepler is a part of **Kyu**, a global network of agencies, including BIMM, Sid L
 
 Because Kepler is an agency working with clients, we have strict access control requirements per client.
 
+Note:
+Clients may be direct competitors.
+
 ---
 
 - In our core system, we used a PBAC (Policy-Based Access Control) model, similar to AWS IAM, which works well for isolating data per client.
@@ -82,7 +85,7 @@ Some of the unique and custom ways we use OpenFGA at Kepler.
 
 ### Multi-Org Users in Context
 
-Users can operate across multiple Kyu companies (orgs), such as Kepler and a sibling company.
+Users can operate across multiple Kyu companies, or orgs, such as Kepler and a sibling company.
 
 We use a contextual tuple to ensure that the currently operating org is used for authorization checks.
 
@@ -92,11 +95,34 @@ We use a contextual tuple to ensure that the currently operating org is used for
 
 - We leverage Auth0 Organizations, so that the user logs in to a specific organization
 - The organization is injected into their token claims.
+
+```json
+{
+  "sub": "john@keplergrp.com",
+  "iss": "https://kepler.auth0.com/",
+  "org_id": "kepler",
+}
+```
+
+---
+
 - Our system will extract it from the claims, and pass it into fga as a contextual tuple.
-- Note: Tests do not support contextual tuples yet.
+
+```python
+await client.check(
+    ClientCheckRequest(
+        user="user:john",
+        relation="can_access",
+        object="artifact:1",
+        contextual_tuples=[
+          ClientTuple("user:john", "user_in_context", f"org:{org_id}"),
+        ],
+    )
+)
+```
 
 Note:
-- This ensures we always use the correct organization context for authorization checks, even if the user is a member of multiple organizations.
+Tests do not support contextual tuples yet.
 
 ---
 
@@ -194,15 +220,23 @@ For example, access to a resource must also require access to the overall app or
 
 #### How
 
-**Example**: Can access artifact + app + client
+Can access artifact + app + org
 
 ```rb
 type artifact
   relations
     define app: [app]
-    define client: [client]
+    define org: [org]
     define owner: [user]
-    define can_access: owner and can_access from app and can_access from client
+    define can_access: owner and can_access from app and can_access from org
+```
+
+
+```mermaid
+flowchart TD
+    A["can_access artifact:1"] --> B["owner?"]
+    A --> C["can_access from app?"]
+    A --> D["can_access from org?"]
 
 ---
 
@@ -225,7 +259,7 @@ Note: Let's talk about a time when the above principle contributed to an outage.
 ### Investigation
 
 - Pods were exhausting all available DB connections
-- Restart → instantly max out connections → crash → loop
+- Restart → instantly max out connections → crash
 
 ---
 
@@ -264,31 +298,31 @@ We deployed nimbly to move fast; infra was provisioned to get it running, not fo
 #### Model
 
 ```rb
-type user
-
 type org
   relations
-    define member: [user]
-    define user_in_context: [user]
+    define admin: [user]
+    define manager: [user]
+    define member: [user] or admin or manager
 
 type app
   relations
     define org: [org]
-    define can_access: member from org and user_in_context from org
+    define can_access: member from org
 
 type artifact
   relations
     define app: [app]
     define org: [org]
-    define can_access: member from org and user_in_context from org and can_access from app
+    define owner: [user]
+    define can_access: owner and member from org and can_access from app
 ```
 
 Note:
-`artifact.can_access` check is a nested AND
+`artifact.can_access` check is a nested AND, and member from org is a nested OR.
 
 ---
 
-2. A BatchCheck fanned out into many concurrent checks, all competing for the same pool.
+2. A BatchCheck fans out into many concurrent checks, all competing for the same pool.
 
 ---
 
@@ -300,9 +334,6 @@ items = [
         user="user:u1",
         relation="can_access",
         object=f"artifact:p{i}",
-        contextual_tuples=[
-            ClientTuple("user:u1", "user_in_context", "org:o1")
-        ],
     )
     for i in range(1, 101)
 ]
@@ -315,16 +346,14 @@ async with OpenFgaClient(config) as client:
 
 #### Check Resolution
 
-3. To resolve a relation, a check opens a DB cursor to read tuples, and holds that connection open while it dispatches child checks to resolve the nested relations.
-
-A parent check keeps its connection reserved while blocked on children that each need their own connection from the same pool.
+3. To resolve a relation, a check opens a connection and holds that connection open while it dispatches child checks to resolve the nested relations.
 
 Note:
 Each check therefore holds several connections at once (its own cursor plus every child it's waiting on).
 
 ---
 
-4. The pool emptied, and checks were stuck holding a connection while waiting on a child that couldn't get one.
+4. The pool maxes out, and parent checks are stuck holding a connection while waiting on a child that can't get one.
 
 Note:
 Since we hadn't customized the configuration, it used the defaults.
@@ -343,22 +372,21 @@ At this point, checks fail since they time out by exceeding the request deadline
 
 ---
 
-6. 
+6. Healthchecks fail.
 
-- Kubernetes healthcheck pinged the DB.
-- Healthcheck couldn't obtain a connection.
-- Healthcheck failed.
+    - Kubernetes healthcheck attempts to ping the DB.
+    - Connections are maxed out.
 
 Note:
 In the meantime --
 
 ---
 
-7. This caused Kubernetes to kill the unhealthy pods and restart it.
+7. This causes Kubernetes to kill the unhealthy pods and restart it.
 
 ---
 
-<div style="text-align: center; font-size: 4em">🔄</div>
+<div style="text-align: center; font-size: 3em">🔄</div>
 
 Note:
 The cycle repeats
@@ -407,25 +435,45 @@ The pool settings just keep connections warm.
 
 - App access was re-checked for every object in a batch check
 - Factored it out into a new relation that skips the app subtree
-- Check app access once per request, then batch the object checks
-
-Fewer nested checks, fewer connections.
-
-Note:
-Also, for any repeated check branches across batch checks, the cache will absorb them.
-
----
-
-### Model
-
 ```diff
  type artifact
    relations
      define app: [app]
      define org: [org]
--    define can_access: member from org and user_in_context from org and can_access from app
-+    define can_access_within_app: member from org and user_in_context from org
+     define owner: [user]
+-    define can_access: owner and member from org and can_access from app
++    define can_access_within_app: owner and member from org
 ```
+
+---
+
+- Check app access once per request, then batch the object checks
+
+```python
+async def can_access_artifacts():
+    await client.check(
+        ClientCheckRequest(
+            user="user:john",
+            relation="can_access",
+            object="app:hub",
+        )
+    )
+
+    await client.batch_check(
+        ClientBatchCheckRequest(
+            [
+                ClientBatchCheckItem(
+                    user="user:john",
+                    relation="can_access_within_app",
+                    object=f"artifact:{id_}",
+                )
+            ]
+        )
+    )
+```
+
+Note:
+And of course, for any other repeated check branches across batch checks, the cache will absorb them.
 
 ---
 
