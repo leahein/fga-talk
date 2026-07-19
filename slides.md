@@ -55,16 +55,15 @@ Clients may be direct competitors.
 
 An new AI-powered platform designed for collaboration across Kyu companies.
 
-Note:
-- Hub is a relatively new system, deployed nimbly, and not yet exposed to clients.
-
-
 ---
 
 
 - A platform where AI agents generate artifacts.
 - Artifacts can be shared dynamically between users and work groups, and eventually across Kyu companies, for collaboration.
 - User's access is determined by their relationship to the Kyu company, the client, and the resource.
+
+Note:
+- Hub is a relatively new system, deployed nimbly, and not yet exposed to clients.
 
 ---
 
@@ -131,7 +130,7 @@ Tests do not support contextual tuples yet.
 - Instead, use the app database to list the resources first.
 
 Note:
-Initially we listed the objects in fga first, but requests were exceeding the default list limits.
+Another learning -- Initially we listed the objects in fga first, but requests were exceeding the default list limits.
 
 ---
 
@@ -143,8 +142,10 @@ Initially we listed the objects in fga first, but requests were exceeding the de
 
 
 Note:
-For example, an artifact can be private, or it can be shared with everyone working on the client team. Whether it's public / private is stored in the app database.
-Once we query for that information, we then check fga to determine the user's relationship with the resource.
+- For example, an artifact can be private, or it can be shared with everyone working on the client team. 
+- The visibility of whether it's public / private is stored in the app database.
+- Once we query for that information, we then check fga to determine the user's relationship with the resource.
+- Pagination with infinite scroll
 
 ---
 
@@ -164,7 +165,7 @@ Once we query for that information, we then check fga to determine the user's re
 
 ### CI/CD
 
-Hub is developed across multiple sub-apps. 
+Hub is developed and deployed across multiple apps. 
 
 We split the fga model into **modules** per app. 
 
@@ -258,14 +259,14 @@ Note: Let's talk about a time when the above principle contributed to an outage.
 ### Investigation
 
 - Pods were exhausting all available DB connections
-- Restart → instantly max out connections → crash
+- Max out connections → crash -> restart
 
 ---
 
 ### State
 
 - **Pods**: 3
-- **DB Size**: Small
+- **DB Instance Size**: Small
 - **Configuration**: Default
 
 ---
@@ -313,7 +314,7 @@ type artifact
     define app: [app]
     define org: [org]
     define owner: [user]
-    define can_access: owner and member from org and can_access from app
+    define can_access: owner and can_access from app and member from org 
 ```
 
 Note:
@@ -373,7 +374,7 @@ At this point, checks fail since they time out by exceeding the request deadline
 
 6. Healthchecks fail.
 
-    - Kubernetes healthcheck attempts to ping the DB.
+    - Healthcheck attempts to ping the DB.
     - Connections are maxed out.
 
 Note:
