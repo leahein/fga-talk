@@ -46,9 +46,8 @@ Clients may be direct competitors.
 
 ---
 
-- In our core system, we used a PBAC (Policy-Based Access Control) model, similar to AWS IAM, which works well for isolating data per client.
-- This requires a separate policy for every type of access requirement.
-- This works well for our core system, where access is static and defined once per app and client.
+- In our core system, we use a Policy-Based Access Control (PBAC) model.
+- This works well for our core system, where access is static and a policy is defined once per app and client.
 
 ---
 
