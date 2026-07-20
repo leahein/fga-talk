@@ -51,13 +51,16 @@ The k8s cascade on top of it is a nice second act: the health-check DB ping also
 - Diagram
 - draft DONE
 - Downtime Model + Check (product -> artifact), @fga-max-conns
+- Time it
+- Consistent model can_access
+- Eli
 --
 -> Throughline! Weave full story
-- Images??
-- Practice
-- Time it
+  - Shorten!!
+- Practice (+ time)
+- Images?
 
 
 ### Considerations
 
-Why not #member
+Why not #member: Cause user_in_context
