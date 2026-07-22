@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Understand Kepler + AuthZ requirements
+- Understand Kepler + AuthZ
 - Understand the use of OpenFGA at Kepler
 - What we learned
 
@@ -31,7 +31,7 @@ A digital marketing agency.
 
 ### Kyu
 
-Kepler is a part of **Kyu**, a global network of agencies, including BIMM, Sid Lee, and others.
+Kepler is a part of **Kyu**, a global network of agencies.
 
 ---
 
@@ -39,15 +39,11 @@ Kepler is a part of **Kyu**, a global network of agencies, including BIMM, Sid L
 
 ---
 
-Because Kepler is an agency working with clients, we have strict access control requirements per client.
+- In our core system, we use a Policy-Based Access Control (PBAC) model.
+- Access is static and a policy is defined once per app and client.
 
 Note:
-Clients may be direct competitors.
-
----
-
-- In our core system, we use a Policy-Based Access Control (PBAC) model.
-- This works well for our core system, where access is static and a policy is defined once per app and client.
+This works well for our core system, where 
 
 ---
 
@@ -63,14 +59,18 @@ An new AI-powered platform designed for collaboration across Kyu companies.
 - User's access is determined by their relationship to the Kyu company, the client, and the resource.
 
 Note:
+AuthZ needs are different
+
 - Hub is a relatively new system, deployed nimbly, and not yet exposed to clients.
+
 
 ---
 
-This requires a fine-grained relationship-based access control model, rather than static policies. 
+This requires a fine-grained relationship-based access control model. 
 
-Note:
-**This is where OpenFGA comes in!**
+---
+
+## OpenFGA
 
 ---
 
