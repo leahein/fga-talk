@@ -54,9 +54,9 @@ The k8s cascade on top of it is a nice second act: the health-check DB ping also
 - Time it
 - Consistent model can_access
 - Eli
+- Shorten!!
 --
 -> Throughline! Weave full story
-  - Shorten!!
 - Practice (+ time)
 - Images?
 
@@ -64,3 +64,19 @@ The k8s cascade on top of it is a nice second act: the health-check DB ping also
 ### Considerations
 
 Why not #member: Cause user_in_context
+
+
+Possible Taglines:
+- What We Replaced, What We Built, What We Learned
+- From Defaults to Durability 
+- From Policies to Production 
+
+1. PBAC
+2. Hub
+3. OpenFGA!
+4. Defaults
+5. Incident!
+6. Remediation
+7. Practices
+  - Modules
+  - Filter then BatchCheck
