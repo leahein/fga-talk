@@ -29,9 +29,16 @@ A digital marketing agency.
 
 ---
 
-### Kyu
+### kyu
 
-Kepler is a part of **Kyu**, a global network of agencies.
+Kepler is a part of **kyu**, a global network of agencies.
+
+<div style="display: flex; align-items: center; justify-content: center; gap: 2em; margin-top: 1em;">
+  <img src="assets/kyu.svg" alt="kyu" style="height: 3em;" />
+  <img src="assets/kepler.svg" alt="Kepler" style="height: 3em;" />
+  <img src="assets/bimm.svg" alt="BIMM" style="height: 3em;" />
+  <img src="assets/sid-lee.svg" alt="Sid Lee" style="height: 3em;" />
+</div>
 
 ---
 
@@ -47,16 +54,16 @@ This works well for our core system, where
 
 ---
 
-### Kyu Hub
+### kyu Hub
 
-An new AI-powered platform designed for collaboration across Kyu companies.
+An new AI-powered platform designed for collaboration across kyu companies.
 
 ---
 
 
 - A platform where AI agents generate artifacts.
-- Artifacts can be shared dynamically between users and work groups, and eventually across Kyu companies, for collaboration.
-- User's access is determined by their relationship to the Kyu company, the client, and the resource.
+- Artifacts can be shared dynamically between users and work groups, and eventually across kyu companies, for collaboration.
+- User's access is determined by their relationship to the kyu company, the client, and the resource.
 
 Note:
 AuthZ needs are different
@@ -83,7 +90,7 @@ Some of the unique and custom ways we use OpenFGA at Kepler.
 
 ### Multi-Org Users in Context
 
-Users can operate across multiple Kyu companies, or orgs, such as Kepler and a sibling company.
+Users can operate across multiple kyu companies, or orgs, such as Kepler and a sibling company.
 
 We use a contextual tuple to ensure that the currently operating org is used for authorization checks.
 
@@ -322,6 +329,29 @@ Note:
 
 ---
 
+#### Fan-Out
+
+```mermaid
+mindmap
+    root((can_access<br/>artifact:1))
+        (owner)
+            ((user))
+        (can_access from app)
+            (member from org)
+                ((user))
+                ((admin))
+                ((manager))
+        (member from org)
+            ((user))
+            ((admin))
+            ((manager))
+```
+
+Note:
+One check fans out into the owner check plus two org-membership subtrees (one via app, one direct), each an OR over user/admin/manager. Every branch is a separate read holding a connection.
+
+---
+
 2. A BatchCheck fans out into many concurrent checks, all competing for the same pool.
 
 ---
@@ -443,6 +473,21 @@ The pool settings just keep connections warm.
      define owner: [user]
 -    define can_access: owner and member from org and can_access from app
 +    define can_access_within_app: owner and member from org
+```
+
+---
+
+#### Fan-Out (Optimized)
+
+```mermaid
+mindmap
+    root((can_access_within_app<br/>artifact:1))
+        (owner)
+            ((user))
+        (member from org)
+            ((user))
+            ((admin))
+            ((manager))
 ```
 
 ---
