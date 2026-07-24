@@ -4,13 +4,13 @@
 
 ## Summary
 
-- Understand Kepler + AuthZ
-- Understand the use of OpenFGA at Kepler
-- What we learned
+- What We Replaced
+- What We Built
+- What We Learned
 
 Note:
 - Kepler as a company and its unique authz requirements
-- Understand the interesting ways we use it
+- Understand how we began our journey with OpenFGA
 - A bit of a war story and what we learned from it and how we remediated it.
 
 ---
@@ -44,13 +44,45 @@ Kepler is a part of **kyu**, a global network of agencies.
 
 ## AuthZ @ Kepler
 
+### From Fixed to Flexible
+
+
 ---
 
-- In our core system, we use a Policy-Based Access Control (PBAC) model.
-- Access is static and a policy is defined once per app and client.
+Because Kepler is an agency working with clients, we have strict access control requirements per client.
+
 
 Note:
-This works well for our core system, where 
+Clients may be direct competitors.
+
+---
+
+- In our core system, we used a PBAC (Policy-Based Access Control) model.
+- This requires a separate policy for every type of access requirement.
+
+```json
+{
+  "Group": "client-admin",
+  "Statement": [
+    {
+      "Action": ["advertisers-readAdvertisers"],
+      "Effect": "Allow",
+      "Resource": [
+        "krn:kip:advertisers:kplr://advertiser/CLIENT-NAME/*",
+      ]
+    },
+  ],
+  "Version": "2020-09-25"
+}
+```
+
+Note:
+Similar to AWS IAM
+
+---
+
+- Access is static and defined once per app and client.
+- This works well when isolating data per client.
 
 ---
 
@@ -73,150 +105,22 @@ AuthZ needs are different
 
 ---
 
-This requires a fine-grained relationship-based access control model. 
+This requires a fine-grained relationship-based access control model, rather than a static policy.
 
 ---
 
 ## OpenFGA
 
----
-
-## Use Cases
+### From Defaults to Durability
 
 Note:
-Some of the unique and custom ways we use OpenFGA at Kepler.
+At first, we started with a basic model and deployment. We learned a lot the hard way.
+Each one started with the simple, out-of-the-box approach, then evolved into something more deliberate.
+
 
 ---
 
-### Multi-Org Users in Context
-
-Users can operate across multiple kyu companies, or orgs, such as Kepler and a sibling company.
-
-We use a contextual tuple to ensure that the currently operating org is used for authorization checks.
-
----
-
-#### How
-
-- We leverage Auth0 Organizations, so that the user logs in to a specific organization
-- The organization is injected into their token claims.
-
-```json
-{
-  "sub": "john@keplergrp.com",
-  "iss": "https://kepler.auth0.com/",
-  "org_id": "kepler",
-}
-```
-
----
-
-- Our system will extract it from the claims, and pass it into fga as a contextual tuple.
-
-```python
-await client.check(
-    ClientCheckRequest(
-        user="user:john",
-        relation="can_access",
-        object="artifact:1",
-        contextual_tuples=[
-          ClientTuple("user:john", "user_in_context", f"org:{org_id}"),
-        ],
-    )
-)
-```
-
-Note:
-Tests do not support contextual tuples yet.
-
----
-
-### ~~List Objects~~ Filter then Batch Check
-
-- Avoid using list operations, which are expensive.
-- Instead, use the app database to list the resources first.
-
-Note:
-Another learning -- Initially we listed the objects in fga first, but requests were exceeding the default list limits.
-
----
-
-#### How
-
-- Filter on the user's resource, or by the resource's visibility (public vs. private, etc.).
-- Use the filtered results to batch check access against fga.
-- Limit the number of checks per batch checks via database pagination.
-
-
-Note:
-- For example, an artifact can be private, or it can be shared with everyone working on the client team. 
-- The visibility of whether it's public / private is stored in the app database.
-- Once we query for that information, we then check fga to determine the user's relationship with the resource.
-- Pagination with infinite scroll
-
----
-
-
-<!-- #### Staging -->
-
-<!-- Every developer gets a personal staging environment, which is a dynamically spun-up copy of the whole app. --> 
-
-<!-- --- -->
-
-<!-- #### How -->
-
-<!-- - Dynamically spin up a developer-specific fga store with the pre-requisite tuples --> 
-<!-- - Assign the developer as the "admin" user of that store so they get full access to test their changes. -->
-
-<!-- --- -->
-
-### CI/CD
-
-Hub is developed and deployed across multiple apps. 
-
-We split the fga model into **modules** per app. 
-
-A change to any module rolls out to every FGA-consuming app.
-
-Note:
-The model is split into modules, one per sub-app, but they compose into a single model, so a change to any module changes the model, which must then be rolled out to every app.
-
----
-
-#### How
-
-```mermaid
-sequenceDiagram
-    participant CI as CI (GitHub Actions)
-    participant FGA as OpenFGA
-    participant CD as CD (ArgoCD)
-    participant K8s as Kubernetes
-    participant App as Hub apps
-
-    Note over CI: Edit an FGA module
-    App->>FGA: authorization checks (old model)
-    CI->>CI: run FGA model tests
-    CI->>FGA: apply updated model
-    FGA-->>CI: new model ID
-    CI->>CD: pin model ID in app configs
-    CD->>K8s: apply changed config
-    K8s->>App: restart pods on new model
-    App->>FGA: authorization checks (new model)
-```
-
-Note:
-- On PR, CI detects the FGA change and flags it.
-- On deploy, the pipeline runs the setup script, which applies the model and bootstraps tuples against the live FGA service.
-- FGA versions the model and the script outputs the new model ID.
-- CI grabs that ID pins it into each app's configmap (using kustomize), then commits that to our config repo.
-- This is where ArgoCD comes in: it watches that repo, and when it sees the changed config it applies it to the Kubernetes cluster.
-- Kubernetes then restarts the pods so they use the new model, and every app resolves against the same version.
-
-- **This allows us to also roll back to a previous version of the model if needed.**
-
----
-
-### Checks are Comprehensive
+## 1. Comprehensive Checks
 
 Each check must answer whether the user has access to all pre-requisite checks.
 
@@ -225,7 +129,7 @@ For example, access to a resource must also require access to the overall app or
 
 ---
 
-#### How
+### Then
 
 Can access artifact + app + org
 
@@ -244,33 +148,14 @@ flowchart TD
     A["can_access artifact:1"] --> B["owner?"]
     A --> C["can_access from app?"]
     A --> D["can_access from org?"]
+```
+
+Note:
+This is so that if a user is removed from an org or a client, we can simply remove one tuple relationship, and they lose access to all downstream resources.
 
 ---
 
-## The Incident
-
-Note: Let's talk about a time when the above principle contributed to an outage.
-
----
-
-### Event
-
-30 minutes after a routine model deploy, our fga service went down and couldn't come back up.
-
-- Hub inaccessible to all users
-- All FGA pods crashing
-- Pods restarting in a loop
-
----
-
-### Investigation
-
-- Pods were exhausting all available DB connections
-- Max out connections → crash -> restart
-
----
-
-### State
+#### Configuration
 
 - **Pods**: 3
 - **DB Instance Size**: Small
@@ -294,7 +179,30 @@ We deployed nimbly to move fast; infra was provisioned to get it running, not fo
 
 ---
 
-### Causal Chain
+### The Incident
+
+Note: Starting with these defaults, this caused an outage.
+
+---
+
+#### Event
+
+30 minutes after a routine model deploy, our fga service went down and couldn't come back up.
+
+- Hub inaccessible to all users
+- All FGA pods crashing
+- Pods restarting in a loop
+
+---
+
+#### Investigation
+
+- Pods were exhausting all available DB connections
+- Max out connections → crash -> restart
+
+---
+
+#### Causal Chain
 
 ---
 
@@ -423,11 +331,11 @@ The cycle repeats
 
 ---
 
-## Remediation
+### Now
 
 ---
 
-### Infra
+#### Infra
 
 - Right-sized the DB: `t4g.small` → `t4g.medium`
 - Raised max DB connections per pod
@@ -437,7 +345,7 @@ Larger DB instance gives us more connections, allowing us to raise the max db co
 
 ---
 
-### Config
+#### Config
 
 - Stable pool: Set min idle / min open database connections
 - Capped concurrent checks
@@ -461,7 +369,7 @@ The pool settings just keep connections warm.
 
 ---
 
-### Model
+#### Model
 
 - App access was re-checked for every object in a batch check
 - Factored it out into a new relation that skips the app subtree
@@ -522,17 +430,106 @@ And of course, for any other repeated check branches across batch checks, the ca
 
 ---
 
-### Minimal Reproduction
+#### Minimal Reproduction
 
 https://github.com/leahein/fga-max-conns
 
 ---
 
-### Results
+#### Results
 
 - Lower check latency
 - Fewer DB connections per check / batch check
 - Cache absorbing repeat checks
+
+---
+
+## 2. One App → Modules
+
+Note:
+Some of the unique and custom ways we use OpenFGA at Kepler.
+
+---
+
+### Then
+
+- A single monolithic app and fga model
+
+---
+
+### Now
+
+Hub is broken out into multiple appls.
+
+We split the fga model into **modules** per app. 
+
+A change to any module rolls out to every FGA-consuming app.
+
+Note:
+The model is split into modules, one per sub-app, but they compose into a single model, so a change to any module changes the model, which must then be rolled out to every app.
+
+---
+
+### How
+
+```mermaid
+sequenceDiagram
+    participant CI as CI (GitHub Actions)
+    participant FGA as OpenFGA
+    participant CD as CD (ArgoCD)
+    participant App as Hub apps
+
+    Note over CI: Edit an FGA module
+    App->>FGA: checks (old model)
+    CI->>CI: run FGA model tests
+    CI->>FGA: apply updated model
+    FGA-->>CI: new model ID
+    CI->>CD: pin model ID in app configs
+    CD->>App: roll out pods on new model
+    App->>FGA: checks (new model)
+```
+
+Note:
+- On PR, CI detects the FGA change and flags it.
+- On deploy, the pipeline runs the setup script, which applies the model and bootstraps tuples against the live FGA service.
+- FGA versions the model and the script outputs the new model ID.
+- CI grabs that ID pins it into each app's configmap (using kustomize), then commits that to our config repo.
+- This is where ArgoCD comes in: it watches that repo, and when it sees the changed config it applies it to the Kubernetes cluster.
+- Kubernetes then restarts the pods so they use the new model, and every app resolves against the same version.
+
+- **This allows us to also roll back to a previous version of the model if needed.**
+
+---
+
+## 3. List → Batch Check
+
+- Avoid using list operations, which are expensive.
+- Instead, use the app database to list the resources first.
+
+Note:
+Another learning -- initially we listed the objects in fga first, but requests were exceeding the default list limits.
+
+---
+
+### Then
+
+- List all objects in fga
+- Filter in the app database
+
+---
+
+### Now
+
+- Filter on the user's resource, or by the resource's visibility (public vs. private, etc.).
+- Use the filtered results to batch check access against fga.
+- Limit the number of checks per batch checks via database pagination.
+
+
+Note:
+- For example, an artifact can be private, or it can be shared with everyone working on the client team.
+- The visibility of whether it's public / private is stored in the app database.
+- Once we query for that information, we then check fga to determine the user's relationship with the resource.
+- Pagination with infinite scroll
 
 ---
 
