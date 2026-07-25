@@ -135,6 +135,13 @@
         font-weight: 500;
       }
 
+      /* Strikethrough — thicker line */
+      .reveal del,
+      .reveal s {
+        text-decoration-line: line-through;
+        text-decoration-thickness: 4px;
+      }
+
       /* Table styling */
       .reveal table {
         width: 100%;
@@ -259,7 +266,13 @@
 
       .reveal .mermaid foreignObject div {
         overflow: visible;
-        padding-bottom: 2px;
+      }
+
+      /* Enlarge the ER diagram so it fills the slide */
+      .reveal .slides section.er-large .mermaid svg {
+        max-width: none !important;
+        width: 70%;
+        height: auto !important;
       }
 
       /* Shrink the fan-out mindmap so it doesn't dominate the slide */

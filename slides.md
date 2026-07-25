@@ -164,6 +164,9 @@ Say a user owns an artifact. That's not enough.
 - **DB Instance Size**: Small
 - **Configuration**: Default
 
+Note:
+We deployed nimbly to move fast; infra was provisioned to get it running, not for production load.
+
 ---
 
 ```bash
@@ -177,13 +180,12 @@ _Version: 1.15.1_
 
 Note:
 Starting with these defaults, this caused an outage.
-We deployed nimbly to move fast; infra was provisioned to get it running, not for production load.
 
 ---
 
 #### Event
 
-30 minutes after a routine model deploy, our fga service went down and couldn't come back up.
+30 minutes after a routine model deploy, our FGA service went down and couldn't come back up.
 
 - Hub inaccessible to all users
 - All FGA pods crashing
@@ -256,7 +258,7 @@ One check fans out into the owner check plus two org-membership subtrees (one vi
 
 ---
 
-2. A BatchCheck fans out into many concurrent checks, all competing for the same pool.
+2. A Batch Check fans out into many concurrent checks, all competing for the same pool.
 
 ---
 
@@ -410,7 +412,7 @@ LIST_OBJECTS_ITERATOR_CACHE_ENABLED
 ```
 
 Note:
-Basically, follow fga best practices for production config.
+Basically, follow FGA best practices for production config.
 The pool settings just keep connections warm.
 
 ---
@@ -431,7 +433,7 @@ The pool settings just keep connections warm.
 
 ---
 
-#### Fan-Out - Optimized
+#### Fan-Out: Optimized
 
 ```mermaid
 mindmap
@@ -495,13 +497,13 @@ https://github.com/leahein/fga-max-conns
 Separate modules per app.
 
 Note:
-Some of the unique and custom ways we use OpenFGA at Kepler.
+As the app grew, the next thing we evolved to...
 
 ---
 
 ### Then
 
-A single monolithic app and fga model.
+A single monolithic app and FGA model.
 
 Note:
 Originally we started out with 1 big model, but as the app grew, we started to develop it across multiple sub-apps.
@@ -519,11 +521,9 @@ The model is split into modules, one per sub-app, but they compose into a single
 
 ---
 
-### How
-
 ```mermaid
 flowchart TB
-    Edit(["Edit an FGA module"]) --> Test(["Run tests"]) --> CICD(["CI / CD"])
+    Edit(["Edit an FGA module"]) --> Test(["Run all tests"]) --> CICD(["CI / CD"])
 
     CICD -- "apply" --> FGA[("OpenFGA")]
     FGA -. "model ID" .-> CICD
@@ -547,7 +547,8 @@ flowchart TB
 
 Note:
 - On PR, CI detects the FGA change and flags it.
-- On deploy, the pipeline runs the setup script, which applies the model against the live FGA service.
+- We first run tests against all apps
+- On deploy, the pipeline applies the model against the live FGA service.
 - FGA versions the model and the script outputs the new model ID.
 - CI grabs that ID and pushes the model ID out to all apps.
 
@@ -563,47 +564,73 @@ Note:
 
 ---
 
-## ~~List~~ Filter -> Batch Check
+## ~~List -> Search~~ Search -> Batch Check
 
-Do not use list operations. 
+Avoid list operations in FGA.
 
-Filter in the app database, then batch check against fga.
+Search the database, then batch check against FGA.
 
 Note:
+The next thing we learned.
 These are expensive
 
 ---
 
 ### Then
 
-- List objects in fga.
+- List objects in FGA.
 - Filter in the app database.
 
 Note:
-Iniitially we listed the objects in fga first, but as the number of records increased, you need to begin dealing with the list objects limits.
-
+Iniitially, to display all user artifacts, we listed the objects in FGA first, because the total number of objects user can access is low. But as the user's artifacts grew, we ran into the list deadline / max results limits on fga, and had to work around them.
 
 ---
 
 ### Now
 
-- Filter in the app database.
-- Batch check access against fga.
-- Limit the number of checks per batch checks via database pagination.
+1. Pre-filter on data we have in the app database.
+
+2. Batch check access against FGA.
+
+3. Use database pagination + infinite scroll to limit the number of checks per batch checks.
 
 Note:
-Filter on the user's resource, or by the resource's visibility (public vs. private, etc.).
+We switched that, so we pre-filter on data we already have in the database, which then narrows down the set.
+To further narrow it down...
+
+---
+
+<!-- .slide: class="er-large" -->
+
+```mermaid
+erDiagram
+    ARTIFACT {
+        uuid user_id
+        uuid client_id
+        enum visibility "private | public"
+    }
+```
+
+Note:
+Filter on the user's resource, the client, and the resource's visibility (public vs. private, etc.).
   - For example, an artifact can be private, or it can be shared with everyone working on the client team.
   - The visibility of whether it's public / private is stored in the app database.
-  - Once we query for that information, we then check fga to determine the user's relationship with the resource.
-- Pagination with infinite scroll
+  - We query for both the user's artifacts and the public artifacts  for the client (then batch check the filtered results against FGA).
 
 ---
 
 ### Results
 
-- No management of list limits in fga.
-- Pagination + infinite scroll keeps the batch check size manageable.
+- No management of list limits in FGA.
+- Pagination keeps the batch check size manageable.
+
+Note:
+Infinite scroll has no fixed page count, so post-check drops are a non-issue.
+
+---
+
+Note:
+Overall, these improvements and patterns have gotten us to a stable and maintainable authorization system...for now.
 
 ---
 
