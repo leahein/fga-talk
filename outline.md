@@ -58,7 +58,7 @@ The k8s cascade on top of it is a nice second act: the health-check DB ping also
 --
 -> Throughline! Weave full story
 - Practice (+ time)
-- Images?
+- Improve slides / Images?
 
 
 ### Considerations

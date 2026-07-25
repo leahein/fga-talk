@@ -116,8 +116,9 @@ Rather than a static policy --
 ### From Defaults to Durability
 
 Note:
-At first, we started with a basic model and deployment. We learned a lot the hard way.
-Each one started with the simple, out-of-the-box approach, then evolved into something more deliberate.
+At first, we started with a basic model and default deployment. Each one started with the simple, out-of-the-box approach, then evolved into something more deliberate. 
+
+We learned a lot the hard way.
 
 
 ---
@@ -154,7 +155,8 @@ flowchart TD
 
 Note:
 Say a user owns an artifact. That's not enough.
-**Why?** This is so that if a user is removed from an org or a client, we can simply remove one tuple relationship, and they lose access to all downstream resources.
+
+**Why?** This is so that if a user is removed from an org / company or a client, we can simply remove one tuple relationship, that will cascade and remove access to all artifacts.
 
 ---
 
@@ -165,6 +167,8 @@ Say a user owns an artifact. That's not enough.
 - **Configuration**: Default
 
 Note:
+We then deployed this model.
+
 We deployed nimbly to move fast; infra was provisioned to get it running, not for production load.
 
 ---
@@ -254,7 +258,9 @@ mindmap
 ```
 
 Note:
-One check fans out into the owner check plus two org-membership subtrees (one via app, one direct), each an OR over user/admin/manager. Every branch is a separate read holding a connection.
+One check fans out into the owner check plus two org-membership subtrees (one via app, one direct), each an OR over user/admin/manager. 
+
+Every branch is a separate read holding a connection.
 
 ---
 
@@ -328,6 +334,9 @@ mindmap
             ((manager))
 ```
 
+Note:
+Happening 100 times.
+
 ---
 
 #### Check Resolution
@@ -357,6 +366,8 @@ Note:
 At this point, checks fail since they time out by exceeding the request deadline.
 
 ---
+
+#### Healthchecks
 
 6. Healthchecks fail.
 
@@ -474,6 +485,7 @@ async def can_access_artifacts():
 ```
 
 Note:
+We do a 1-time check if you can access the app, instead of checking it for every artifact.
 And of course, for any other repeated check branches across batch checks, the cache will absorb them.
 
 ---
@@ -506,7 +518,7 @@ As the app grew, the next thing we evolved to...
 A single monolithic app and FGA model.
 
 Note:
-Originally we started out with 1 big model, but as the app grew, we started to develop it across multiple sub-apps.
+Originally we started out with 1 big model, but as the app grew, we started to develop it across multiple sub-apps and it became difficult to manage.
 
 ---
 
@@ -547,7 +559,7 @@ flowchart TB
 
 Note:
 - On PR, CI detects the FGA change and flags it.
-- We first run tests against all apps
+- We first run tests against all apps to make sure a change doesn't break any app.
 - On deploy, the pipeline applies the model against the live FGA service.
 - FGA versions the model and the script outputs the new model ID.
 - CI grabs that ID and pushes the model ID out to all apps.
@@ -595,7 +607,8 @@ Iniitially, to display all user artifacts, we listed the objects in FGA first, b
 3. Use database pagination + infinite scroll to limit the number of checks per batch checks.
 
 Note:
-We switched that, so we pre-filter on data we already have in the database, which then narrows down the set.
+We switched that, so we pre-filter on data we already have in the database, which then narrows down the number of objects.
+
 To further narrow it down...
 
 ---
