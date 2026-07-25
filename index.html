@@ -249,6 +249,8 @@
 
       .reveal .mermaid svg {
         overflow: visible;
+        display: block;
+        margin: 0 auto;
       }
 
       .reveal .mermaid foreignObject {
@@ -258,6 +260,17 @@
       .reveal .mermaid foreignObject div {
         overflow: visible;
         padding-bottom: 2px;
+      }
+
+      /* Shrink the fan-out mindmap so it doesn't dominate the slide */
+      .reveal .slides section.mindmap-small pre {
+        text-align: center;
+      }
+
+      .reveal .slides section.mindmap-small .mermaid svg {
+        max-width: 240px !important;
+        width: 100% !important;
+        height: auto !important;
       }
 
       /* Slide number — Kepler yellow */
