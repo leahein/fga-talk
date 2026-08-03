@@ -1,17 +1,17 @@
-# FGA @ Kepler
+# OpenFGA @ Kepler
 
 ---
 
 ## Summary
 
-- Before OpenFGA
-- Starting with OpenFGA
-- Learnings from OpenFGA
+- About Kepler
+- Why OpenFGA
+- From Simple to Scalable
 
 Note:
-- The context of Kepler AuthZ
-- How we started with the basics
-- What we learned along the way
+- The context of Kepler
+- Why we use OpenFGA
+- The 3 ways in which we started out simple and how we evolved to a more scalable solution.
 
 ---
 
@@ -25,7 +25,7 @@ Authentication & Authorization
 
 ## Kepler Group
 
-A digital marketing agency.
+A digital marketing agency
 
 Note:
 Serving Fortune 500 clients
@@ -34,7 +34,7 @@ Serving Fortune 500 clients
 
 ### kyu
 
-Kepler is a part of **kyu**, a global network of agencies.
+Kepler is a part of **kyu**, a global network of agencies
 
 <div style="display: flex; align-items: center; justify-content: center; gap: 2em; margin-top: 1em;">
   <img src="assets/kyu.svg" alt="kyu" style="height: 3em;" />
@@ -51,7 +51,7 @@ Kepler is a part of **kyu**, a global network of agencies.
 
 ---
 
-Strict access control requirements.
+Strict access control requirements
 
 
 Note:
@@ -59,23 +59,19 @@ Because Kepler is an agency working with clients, and clients may be direct comp
 
 ---
 
-In our core system we use **Policy-Based Access Control** (PBAC).
+In our core system we use **Policy-Based Access Control** (PBAC)
 
 ```json
 {
   "Group": "client-admin",
-  "Statement": [
-    {
-      "Action": ["advertisers-readAdvertisers"],
-      "Effect": "Allow",
-      "Resource": [
-        "krn:kip:advertisers:kplr://advertiser/CLIENT-NAME/*",
-      ]
-    },
-  ],
-  "Version": "2020-09-25"
+  "Action": ["advertisers-readAdvertisers"],
+  "Effect": "Allow",
+  "Resource": ["krn:...:advertiser/CLIENT-NAME/*"]
 }
 ```
+
+- Access is static and defined once per app and client
+- Works well when isolating data per client
 
 Note:
 
@@ -85,21 +81,16 @@ A policy is defined for every type of access requirement.
 
 ---
 
-- Access is static and defined once per app and client.
-- Works well when isolating data per client.
-
----
-
 ### kyu Hub
 
-An new AI-powered platform designed for collaboration across kyu companies.
+A new AI-powered platform designed for collaboration across kyu companies
 
 ---
 
 
-- A platform where AI agents generate artifacts.
-- Artifacts can be shared dynamically between users.
-- User's access is determined by their relationship to the kyu company, the client, or the resource.
+- A platform where AI agents generate artifacts
+- Artifacts can be shared dynamically between users
+- User's access is determined by their relationship to the kyu company, the client, or the resource
 
 Note:
 AuthZ needs are different
@@ -110,30 +101,36 @@ Which takes us to...
 
 ## OpenFGA @ Kepler
 
-### From Scrappy to Scalable
+Note:
+This allows us to achieve **fine-grained relationship-based access control model** in a dynamic way that isn't possible with static policies.
+
+---
+
+### From Simple to Scalable
 
 
 Note:
+Now, originally we deployed nimbly to move fast and get the product up and running; not for production load. As the product grew, we ran into a few issues, including an outage.
 
-This allows us to achieve **fine-grained relationship-based access control model** in a dynamic way.
-
-Now, originally we deployed nimbly to move fast and get the product up and running; ng, not for production load. As the product grew, we ran into a few issues, including an outage.
-
-So we'll talk about 3 different scenarios for how we started out, and what we learned in order to ensure we can scale in the future.
+So we'll talk about 3 different scenarios for how we started out simply, and what we learned in order to ensure we can scale in the future.
 
 
 ---
 
-## 1. Comprehensive Checks
+## 1. Unbounded -> Controlled Fan-Out
 
-Each check must answer whether the user has access to all pre-requisite checks.
+Manage comprehensive checks effectively.
+
+---
+
+### Then
+
+Each check must confirm access to every prerequisite
 
 Note:
 It's not enough to have access to the resource.
 
 ---
-
-### Then
 
 Can access `artifact` + `app` + `org`
 
@@ -170,6 +167,9 @@ type artifact
 Note:
 This is a sample of the model.
 
+And this was fine, until we increased the complexity of the model. 30 minutes after a routine model deploy....
+
+
 ---
 
 #### Outage
@@ -177,9 +177,7 @@ This is a sample of the model.
 <div style="text-align: center; font-size: 3em">💥</div>
 
 Note:
-Following this paradigm, it caused an outage.
-
-30 minutes after a routine model deploy, our FGA service went down and couldn't come back up.
+...our FGA service went down and couldn't come back up.
 
 ---
 
@@ -192,10 +190,14 @@ Following this paradigm, it caused an outage.
 
 #### Investigation
 
-OpenFGA was exhausting all DB connections.
+OpenFGA was exhausting all DB connections
 
 Note:
 Connections would max out → crash pods → restart
+
+---
+
+#### Causal Chain
 
 ---
 
@@ -206,7 +208,7 @@ Connections would max out → crash pods → restart
 - **Configuration**: Default
 
 Note:
-Before we dive into the issue, let's understand the state of deployment at the time.
+First, let's understand the state of our deployment at the time.
 
 ---
 
@@ -223,14 +225,11 @@ _Version: 1.15.1_
 
 ---
 
-#### Causal Chain
 
----
-
-1. Deployed a more complex model.
+1. A more complex model increased the number of connections needed to resolve a check
 
 Note:
-This increased the number of connections needed to resolve a check.
+Okay, so the first thing that happened was we deployed a more complex model that...
 
 ---
 
@@ -286,28 +285,10 @@ One check fans out into the owner check plus two org-membership subtrees (one vi
 
 ---
 
-2. A Batch Check fans out into many concurrent checks.
+2. A Batch Check fans out into many concurrent checks
 
 Note:
 All of which are competing for the same pool.
-
----
-
-#### Check
-
-```python
-items = [
-    ClientBatchCheckItem(
-        user="user:u1",
-        relation="can_access",
-        object=f"artifact:{i}",
-    )
-    for i in range(1, 101)
-]
-
-async with OpenFgaClient(config) as client:
-    await client.batch_check(ClientBatchCheckRequest(items))
-```
 
 ---
 
@@ -373,13 +354,16 @@ Each check therefore holds several connections at once (its own cursor plus ever
 
 ---
 
-3. Child checks can't get a connection since the pool is maxed out.
+3. Parents are stuck waiting on child checks
 
-Parents are stuck holding a connection while waiting on a child.
+Note:
+Since the pool is maxed out, child checks can't get a connection 
+
+So parents are stuck holding a connection while waiting on a child
 
 ---
 
-4. The pool deadlocks.
+4. The pool deadlocks
 
 Note:
 At this point, checks fail since they time out by exceeding the request deadline.
@@ -388,17 +372,17 @@ At this point, checks fail since they time out by exceeding the request deadline
 
 #### Healthchecks
 
-5. Healthchecks fail.
+5. Healthchecks fail
 
-    - Healthcheck attempts to ping the DB.
-    - Connections are maxed out.
+    - Healthcheck attempts to ping the DB
+    - Connections are maxed out
 
 Note:
 In the meantime --
 
 ---
 
-6. Kubernetes kills the unhealthy pods and restarts it.
+6. Kubernetes kills the unhealthy pods and restarts it
 
 Note:
 This causes...
@@ -414,9 +398,6 @@ The cycle repeats
 
 ### Now
 
-Note?
-What did we do?
-
 ---
 
 #### Infra
@@ -431,7 +412,7 @@ Larger DB instance gives us more connections, allowing us to raise the max db co
 
 #### Config
 
-- Stable pool: Set min idle / open database connections
+- Stable pool: Set min idle / open connections
 - Capped concurrent checks
 - Enabled caching
 
@@ -449,6 +430,7 @@ LIST_OBJECTS_ITERATOR_CACHE_ENABLED
 
 Note:
 Basically, follow FGA best practices for production config.
+
 The pool settings just keep connections warm.
 
 ---
@@ -464,7 +446,7 @@ The pool settings just keep connections warm.
      define app: [app]
      define org: [org]
      define owner: [user]
--    define can_access: owner and member from org and can_access from app
+-    define can_access: owner and can_access from app and member from org
 +    define can_access_within_app: owner and member from org
 ```
 
@@ -488,7 +470,7 @@ mindmap
 
 ---
 
-Check app access once per request.
+Then, check app access once per request
 
 ```python
 async def can_access_artifacts():
@@ -514,7 +496,7 @@ async def can_access_artifacts():
 ```
 
 Note:
-We do a 1-time check if you can access the app, instead of checking it for every artifact. Then batch check the artifacts with the new relation.
+We **still** do a 1-time check if you can access the app, instead of checking it for every artifact. Then batch check the artifacts with the new relation.
 
 **And of course**, for any other repeated check branches across batch checks, the cache will absorb them.
 
@@ -534,12 +516,12 @@ https://github.com/leahein/fga-max-conns
 
 ---
 
-## 2. ~~List -> Search~~ Search -> Batch Check
+## 2. List & Search -> Search & Batch Check
 
-Avoid list operations in FGA.
+Avoid list operations in FGA
 
 Note:
-The next thing we learned.
+The next thing we learned, in a bit less of an exciting way, is that
 
 **List** is expensive.
 
@@ -547,12 +529,17 @@ The next thing we learned.
 
 ### Then
 
-- List objects in FGA.
-- Filter in the app database.
+- List objects in FGA
+- Filter in the app database
 
 Note:
-Iniitially, to display all user artifacts, we listed the objects in FGA first, because the total number of user artifacts is low.
+Initially, to display all user artifacts, we listed the objects in FGA first, because the total number of user artifacts is low.
 
+---
+
+List results are truncated
+
+Note:
 But as the user's artifacts grew, we ran into list limits and artifacts would be truncated.
 - **list deadline limit**
 - **max results limits**
@@ -563,7 +550,7 @@ Had to work around them.
 
 ### Now
 
-1. Filter on data in the app database first.
+1. Filter on data in the app database first
 
 <!-- .slide: class="er-large" -->
 
@@ -587,11 +574,11 @@ Filter on the user's resource, the client, and the visibility (public vs. privat
 
 ---
 
-2. Batch check access against FGA.
+2. Batch check access against OpenFGA
 
 ---
 
-3. Database pagination to limit the number of checks per batch checks.
+3. Database pagination to limit the number of checks per batch checks
 
 Note:
 To further narrow it down...
@@ -600,37 +587,45 @@ To further narrow it down...
 
 ### Results
 
-- No management of FGA list limits.
-- Pagination keeps the batch check size manageable.
+- No management of FGA list limits
+- Pagination keeps the batch check size manageable
 
 Note:
 Infinite scroll has no fixed page count, so post-check drops are a non-issue.
 
 ---
 
-## 3. Modular Model
+## 3. 1 Model -> Modular Model
 
-Separate modules per app.
+Separate modules per app
 
 Note:
-As the app grew, the next thing we evolved to...
+Finally, the last way in which we evolved and set ourselves up for expansion.
+Is that as the app grew...
 
 ---
 
 ### Then
 
-A single monolithic app and FGA model.
+A single monolithic app and OpenFGA model
 
 Note:
-Originally we started out with 1 big model, but as the app grew, we started to develop Hub across multiple sub-apps and the model became difficult to manage.
+Originally we started out with 1 big model. 
+
+---
+
+Multiple services and teams share 1 model
+
+Note:
+But as the app grew, we started to develop Hub across multiple sub-apps and the model became difficult to manage by separate teams.
 
 ---
 
 ### Now
 
-- Each app has a corresponding FGA **module**.
+- Each app has a corresponding FGA **module**
 
-- A change to any module rolls out to every FGA-consuming app.
+- A change to any module rolls out to every FGA-consuming app
 
 Note:
 The model is split into modules, one per sub-app. 
@@ -664,23 +659,27 @@ flowchart TB
 ```
 
 Note:
-- On PR, CI detects the FGA change and flags it.
+- When an update is made to an FGA module,
 - We first run tests against all apps to make sure a change doesn't break any app.
 - On deploy, the pipeline applies the model against the live FGA service.
 - FGA versions the model and the script outputs the new model ID.
 - CI grabs that ID and pushes the model ID out to all apps.
 
-- **This allows us to also roll back to a previous version of the model if needed.**
-
 ---
 
 ### Results
 
-- Each app manages its own FGA domain.
-- A change in one module gets tested against all apps.
-- The new model is rolled out to all apps.
+- Each app manages its own FGA domain
+- A change in one module gets tested against all apps
+- The new model is rolled out to all apps
 
 ---
+
+## Takeaways
+
+1. **Control Fan-out**
+2. **Avoid List**
+3. **Go Modular**
 
 Note:
 Overall, these improvements and patterns have gotten us to a stable and maintainable authorization system...for now.
