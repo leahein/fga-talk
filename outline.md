@@ -55,10 +55,13 @@ The k8s cascade on top of it is a nice second act: the health-check DB ping also
 - Consistent model can_access
 - Eli
 - Shorten!!
---
--> Throughline! Weave full story
 - Practice (+ time)
-- Improve slides / Images?
+- Throughline: From scrappy to scalable.
+--
+- Team feedback
+- Practice rough corners
+- More diagrams? (List vs. BatchCheck)
+- More practice
 
 
 ### Considerations
