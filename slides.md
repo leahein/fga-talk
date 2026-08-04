@@ -70,7 +70,7 @@ In our core system we use **Policy-Based Access Control** (PBAC)
 }
 ```
 
-- Access is static and defined once per app and client
+- Policies are static and defined once per app and client
 - Works well when isolating data per client
 
 Note:
@@ -110,7 +110,7 @@ This allows us to achieve **fine-grained relationship-based access control model
 
 
 Note:
-Now, originally we deployed nimbly to move fast and get the product up and running; not for production load. As the product grew, we ran into a few issues, including an outage.
+Now, originally when we deployed Hub nimbly to move fast and get the product up and running; not for production load. As the product grew, we ran into a few issues, including an outage.
 
 So we'll talk about 3 different scenarios for how we started out simply, and what we learned in order to ensure we can scale in the future.
 
@@ -142,6 +142,8 @@ flowchart TD
     A --> C["can_access from app?"]
     A --> D["member from org?"]
 ```
+
+- Removing a single relationship cascades to all artifacts
 
 Note:
 Say a user owns an artifact. That's not enough.
@@ -279,7 +281,7 @@ mindmap
 ```
 
 Note:
-One check fans out into the owner check plus two org-membership subtrees (one via app, one direct), each an OR over user/admin/manager. 
+One check fans out into the owner check plus two org-membership subtrees (one via app, one direct), each an OR over user/admin/manager.
 
 **Every branch is a separate read holding a connection.**
 
@@ -288,7 +290,27 @@ One check fans out into the owner check plus two org-membership subtrees (one vi
 2. A Batch Check fans out into many concurrent checks
 
 Note:
+So we weren't doing the fan out once, but in a batch check.
+
 All of which are competing for the same pool.
+
+---
+
+#### Batch Check
+
+```python
+items = [
+    ClientBatchCheckItem(
+        user="user:u1",
+        relation="can_access",
+        object=f"artifact:p{i}",
+    )
+    for i in range(1, 101)
+]
+
+async with OpenFgaClient(config) as client:
+    await client.batch_check(ClientBatchCheckRequest(items))
+```
 
 ---
 
@@ -354,7 +376,7 @@ Each check therefore holds several connections at once (its own cursor plus ever
 
 ---
 
-3. Parents are stuck waiting on child checks
+3. Parents are stuck waiting on child checks that can't get a connection
 
 Note:
 Since the pool is maxed out, child checks can't get a connection 
@@ -470,7 +492,7 @@ mindmap
 
 ---
 
-Then, check app access once per request
+Instead, check app access once per request
 
 ```python
 async def can_access_artifacts():
@@ -529,8 +551,8 @@ The next thing we learned, in a bit less of an exciting way, is that
 
 ### Then
 
-- List objects in FGA
-- Filter in the app database
+1. List objects in FGA
+2. Filter in the app database
 
 Note:
 Initially, to display all user artifacts, we listed the objects in FGA first, because the total number of user artifacts is low.
@@ -550,7 +572,7 @@ Had to work around them.
 
 ### Now
 
-1. Filter on data in the app database first
+1. **First** filter on data in the app database to narrow down objects
 
 <!-- .slide: class="er-large" -->
 
@@ -566,19 +588,19 @@ erDiagram
 Note:
 This narrows down the number of objects.
 
-Filter on the user's resource, the client, and the visibility (public vs. private, etc.).
 
-  - For example, an artifact can be private, or it can be shared with everyone working on the client.
-  - The visibility of whether it's public / private is stored in the app database.
-  - We query for both the user's artifacts and the public artifacts  for the client.
-
----
-
-2. Batch check access against OpenFGA
+- It's not enough to filter on the user's artifacts.
+- Because an artifact can also be shared with everyone working on the client.
+- So the visibility of whether it's public / private is stored in the app database.
+- We query for both the user's artifacts and the public artifacts for the client.
 
 ---
 
-3. Database pagination to limit the number of checks per batch checks
+2. **Then** batch check access against OpenFGA
+
+---
+
+Use database pagination to limit the number of checks per batch checks
 
 Note:
 To further narrow it down...
@@ -614,10 +636,10 @@ Originally we started out with 1 big model.
 
 ---
 
-Multiple services and teams share 1 model
+Multiple services and teams sharing 1 model
 
 Note:
-But as the app grew, we started to develop Hub across multiple sub-apps and the model became difficult to manage by separate teams.
+But as the app grew, we started to develop Hub across multiple sub-apps and the model became difficult to manage across teams.
 
 ---
 
@@ -678,10 +700,14 @@ Note:
 ## Takeaways
 
 1. **Control Fan-out**
-2. **Avoid List**
-3. **Go Modular**
+2. **Avoid List Operations**
+3. **Use Modules**
 
 Note:
+- Control fan-out with your config and model design
+- Avoid list operations when you can
+- Use modules to separate concerns
+
 Overall, these improvements and patterns have gotten us to a stable and maintainable authorization system...for now.
 
 ---
