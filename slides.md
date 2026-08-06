@@ -101,6 +101,8 @@ Which takes us to...
 
 ## OpenFGA @ Kepler
 
+<img class="illo" src="assets/database-tables.svg" alt="" />
+
 Note:
 This allows us to achieve **fine-grained relationship-based access control model** in a dynamic way that isn't possible with static policies.
 
@@ -561,6 +563,8 @@ Initially, to display all user artifacts, we listed the objects in FGA first, be
 
 List results are truncated
 
+<img class="illo" src="assets/buggy-code.svg" alt="" />
+
 Note:
 But as the user's artifacts grew, we ran into list limits and artifacts would be truncated.
 - **list deadline limit**
@@ -613,6 +617,8 @@ To further narrow it down...
 - Pagination keeps the batch check size manageable
 
 Note:
+The tradeoff to this approach is that we tie the app database model to what the user has access to, but...
+
 Infinite scroll has no fixed page count, so post-check drops are a non-issue.
 
 ---
@@ -637,6 +643,8 @@ Originally we started out with 1 big model.
 ---
 
 Multiple services and teams sharing 1 model
+
+<img class="illo" src="assets/image-files.svg" alt="" />
 
 Note:
 But as the app grew, we started to develop Hub across multiple sub-apps and the model became difficult to manage across teams.
