@@ -57,11 +57,18 @@ The k8s cascade on top of it is a nice second act: the health-check DB ping also
 - Shorten!!
 - Practice (+ time)
 - Throughline: From scrappy to scalable.
---
 - Team feedback
 - Practice rough corners
+--
 - More diagrams? (List vs. BatchCheck)
-- More practice
+- Images
+- Practice, practice, practice
+- Who is Kepler, etc.
+
+
+---
+
+Q&A: "In our case", "I'm not sure", etc.
 
 
 ### Considerations
