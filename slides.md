@@ -389,8 +389,10 @@ So parents are stuck holding a connection while waiting on a child
 
 4. The pool deadlocks
 
+<img class="illo" src="assets/server-failure.svg" alt="" />
+
 Note:
-At this point, checks fail since they time out by exceeding the request deadline.
+At this point, checks can't resolve and start failing since they are exceeding the request deadline.
 
 ---
 

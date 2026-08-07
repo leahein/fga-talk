@@ -276,6 +276,72 @@
         overflow: visible;
       }
 
+      /* Mindmaps ignore the mermaid themeVariables. .section-N is the
+         top-level branch, so each cluster is tinted via its border. */
+      .reveal .mermaid g[class*="section-"] rect,
+      .reveal .mermaid g[class*="section-"] circle,
+      .reveal .mermaid g[class*="section-"] ellipse,
+      .reveal .mermaid g[class*="section-"] polygon,
+      .reveal .mermaid g[class*="section-"] path {
+        fill: var(--bg-light) !important;
+        stroke-width: 2px !important;
+      }
+
+      .reveal .mermaid g[class*="section-"] text,
+      .reveal .mermaid .mindmap-node-label text,
+      .reveal .mermaid .mindmap-node-label span {
+        fill: var(--text) !important;
+        color: var(--text) !important;
+      }
+
+      .reveal .mermaid g.section-0 rect,
+      .reveal .mermaid g.section-0 circle,
+      .reveal .mermaid g.section-0 ellipse,
+      .reveal .mermaid g.section-0 polygon,
+      .reveal .mermaid g.section-0 path,
+      .reveal .mermaid path.section-edge-0 {
+        stroke: var(--accent) !important;
+      }
+
+      .reveal .mermaid g.section-1 rect,
+      .reveal .mermaid g.section-1 circle,
+      .reveal .mermaid g.section-1 ellipse,
+      .reveal .mermaid g.section-1 polygon,
+      .reveal .mermaid g.section-1 path,
+      .reveal .mermaid path.section-edge-1 {
+        stroke: var(--gradient-start) !important;
+      }
+
+      .reveal .mermaid g.section-2 rect,
+      .reveal .mermaid g.section-2 circle,
+      .reveal .mermaid g.section-2 ellipse,
+      .reveal .mermaid g.section-2 polygon,
+      .reveal .mermaid g.section-2 path,
+      .reveal .mermaid path.section-edge-2 {
+        stroke: var(--diagram-line) !important;
+      }
+
+      .reveal .mermaid g.section-root rect,
+      .reveal .mermaid g.section-root circle,
+      .reveal .mermaid g.section-root ellipse,
+      .reveal .mermaid g.section-root polygon,
+      .reveal .mermaid g.section-root path {
+        fill: var(--stat-box) !important;
+        stroke: var(--muted) !important;
+      }
+
+      .reveal .mermaid g.section-root text,
+      .reveal .mermaid g.section-root span {
+        fill: var(--accent) !important;
+        color: var(--accent) !important;
+      }
+
+      .reveal .mermaid path[class*="section-edge-"],
+      .reveal .mermaid .edge {
+        fill: none !important;
+        stroke-width: 2px !important;
+      }
+
       /* Enlarge the ER diagram so it fills the slide */
       .reveal .slides section.er-large .mermaid svg {
         max-width: none !important;
