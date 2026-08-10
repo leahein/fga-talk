@@ -81,13 +81,12 @@ In our core system we use **Policy-Based Access Control** (PBAC)
 ```
 
 - Policies are static and defined once per app and client
-- Works well when isolating data per client
 
 Note:
 
 Similar to AWS IAM.
 
-A policy is defined for every type of access requirement.
+This works well in our core system, where a defined set of static policies can isolate client data.
 
 ---
 
@@ -95,15 +94,20 @@ A policy is defined for every type of access requirement.
 
 A new AI-powered platform designed for collaboration across kyu companies
 
+Note:
+A platform where AI agents generate artifacts
+
 ---
 
+Artifacts can be shared dynamically between users
 
-- A platform where AI agents generate artifacts
-- Artifacts can be shared dynamically between users
-- User's access is determined by their relationship to the kyu company, the client, or the resource
+<img class="illo" src="assets/database-tables.svg" alt="" />
+
 
 Note:
 **AuthZ needs are different**
+
+- User's access is determined by their relationship to the kyu company, the client, or the resource
 
 Which takes us to...
 
@@ -111,10 +115,8 @@ Which takes us to...
 
 ## OpenFGA @ Kepler
 
-<img class="illo" src="assets/database-tables.svg" alt="" />
-
 Note:
-This allows us to achieve **fine-grained relationship-based access control model** in a dynamic way that isn't possible with static policies.
+Which allows us to achieve **fine-grained relationship-based access control model** in a dynamic way that isn't possible with static policies.
 
 ---
 
@@ -122,7 +124,7 @@ This allows us to achieve **fine-grained relationship-based access control model
 
 
 Note:
-Now, originally we deployed Hub and openfga simply, to move fast and get the app up and running; not for production load. 
+Now, originally we deployed Hub and openfga nimbly, to move fast and get the app up and running; not for production load. 
 
 As the app grew, we ran into a few issues, including an outage.
 
@@ -142,7 +144,7 @@ Manage comprehensive checks effectively.
 Each check must confirm access to every prerequisite
 
 Note:
-It's not enough to have access to the resource.
+**It's not enough to have access to the resource.**
 
 ---
 
@@ -181,7 +183,9 @@ type artifact
 ```
 
 Note:
-And this was fine, until we increased the complexity of the model to something such as this. 30 minutes after a routine model deploy....
+And this was fine... until we increased the complexity of the model to something such as this. 
+
+After a routine model deploy....
 
 
 ---
@@ -302,7 +306,7 @@ One check fans out into the owner check plus two org-membership subtrees (one vi
 2. A Batch Check fans out into many concurrent checks
 
 Note:
-So we weren't doing the fan out once, but in a batch check.
+**So we weren't doing the fan out once, but in a batch check.**
 
 All of which are competing for the same pool.
 
@@ -391,9 +395,7 @@ Each check therefore holds several connections at once (its own cursor plus ever
 3. Parents are stuck waiting on child checks that can't get a connection
 
 Note:
-...since the pool is maxed out.
-
-So parents are stuck holding a connection while waiting on a child
+**Since the pool is maxed out...**
 
 ---
 
@@ -406,15 +408,15 @@ At this point, checks can't resolve and start failing since they are exceeding t
 
 ---
 
-#### Healthchecks
-
 5. Healthchecks fail
 
-    - Healthcheck attempts to ping the DB
-    - Connections are maxed out
+<img class="illo" src="assets/connection-lost.svg" alt="" style="max-height: 200px;" />
 
 Note:
 In the meantime --
+
+- Healthcheck attempts to ping the DB
+- Connections are maxed out
 
 ---
 
@@ -602,10 +604,10 @@ erDiagram
 ```
 
 Note:
-This narrows down the number of objects.
+**This narrows down the number of objects.**
 
 
-- It's not enough to filter on the user's artifacts.
+- But it's not enough to filter on the user's artifacts.
 - Because an artifact can also be shared with everyone working on the client.
 - So the visibility of whether it's public / private is stored in the app database.
 - We query for both the user's artifacts and the public artifacts for the client.
@@ -711,7 +713,7 @@ Note:
 
 ### Results
 
-- Each app manages its own FGA domain
+- Each app handles its own FGA domain
 - The new model is rolled out to all apps
 
 ---
