@@ -59,10 +59,9 @@ The k8s cascade on top of it is a nice second act: the health-check DB ping also
 - Throughline: From scrappy to scalable.
 - Team feedback
 - Practice rough corners
+- Finalize Images
 --
-- More diagrams? (List vs. BatchCheck)
-- Images
-- Practice, practice, practice
+- Practice, practice, practice @ Sun, Tue, Wed
 - Who is Kepler, etc.
 
 
@@ -78,8 +77,8 @@ Why not #member: Cause user_in_context
 
 Possible Taglines:
 - What We Replaced, What We Built, What We Learned
-- From Defaults to Durability 
-- From Policies to Production 
+- From Defaults to Durability
+- From Policies to Production
 
 1. PBAC
 2. Hub

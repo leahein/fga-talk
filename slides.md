@@ -17,24 +17,29 @@ Note:
 
 ### Leah Einhorn
 
-Principal Software Engineer @ Kepler
 
-Authentication & Authorization
+Principal Software Engineer<br />
+_Authentication & Authorization_
+
+<p class="contact">
+  <br />
+  <a href="https://www.linkedin.com/in/leaheinhorn/">linkedin.com/in/leaheinhorn</a>
+</p>
 
 ---
 
-## Kepler Group
+<!-- .slide: class="logo-title" -->
 
-A digital marketing agency
+<img src="assets/kepler.svg" alt="Kepler Group" />
+
+
 
 Note:
+A digital marketing agency
+
 Serving Fortune 500 clients
 
 ---
-
-### kyu
-
-Kepler is a part of **kyu**, a global network of agencies
 
 <div style="display: flex; align-items: center; justify-content: center; gap: 2em; margin-top: 1em;">
   <img src="assets/kyu.svg" alt="kyu" style="height: 3em;" />
@@ -43,15 +48,20 @@ Kepler is a part of **kyu**, a global network of agencies
   <img src="assets/sid-lee.svg" alt="Sid Lee" style="height: 3em;" />
 </div>
 
+Note:
+Kepler is a part of **kyu**, a global network of agencies
+
 ---
 
 ## AuthZ @ Kepler
 
 <!-- ### From Fixed to Flexible -->
 
+<img class="illo" src="assets/private-files.svg" alt="" style="max-height: 200px;" />
+
 ---
 
-Strict access control requirements
+Kepler has strict access control requirements
 
 
 Note:
@@ -93,7 +103,7 @@ A new AI-powered platform designed for collaboration across kyu companies
 - User's access is determined by their relationship to the kyu company, the client, or the resource
 
 Note:
-AuthZ needs are different
+**AuthZ needs are different**
 
 Which takes us to...
 
@@ -112,7 +122,9 @@ This allows us to achieve **fine-grained relationship-based access control model
 
 
 Note:
-Now, originally when we deployed Hub nimbly to move fast and get the product up and running; not for production load. As the product grew, we ran into a few issues, including an outage.
+Now, originally we deployed Hub and openfga simply, to move fast and get the app up and running; not for production load. 
+
+As the app grew, we ran into a few issues, including an outage.
 
 So we'll talk about 3 different scenarios for how we started out simply, and what we learned in order to ensure we can scale in the future.
 
@@ -169,9 +181,7 @@ type artifact
 ```
 
 Note:
-This is a sample of the model.
-
-And this was fine, until we increased the complexity of the model. 30 minutes after a routine model deploy....
+And this was fine, until we increased the complexity of the model to something such as this. 30 minutes after a routine model deploy....
 
 
 ---
@@ -381,7 +391,7 @@ Each check therefore holds several connections at once (its own cursor plus ever
 3. Parents are stuck waiting on child checks that can't get a connection
 
 Note:
-Since the pool is maxed out, child checks can't get a connection 
+...since the pool is maxed out.
 
 So parents are stuck holding a connection while waiting on a child
 
@@ -565,7 +575,7 @@ Initially, to display all user artifacts, we listed the objects in FGA first, be
 
 List results are truncated
 
-<img class="illo" src="assets/buggy-code.svg" alt="" />
+<img class="illo" src="assets/guidelines.svg" alt="" />
 
 Note:
 But as the user's artifacts grew, we ran into list limits and artifacts would be truncated.
@@ -619,9 +629,9 @@ To further narrow it down...
 - Pagination keeps the batch check size manageable
 
 Note:
-The tradeoff to this approach is that we tie the app database model to what the user has access to, but...
+__The tradeoff to this approach is that we tie the app database model to what the user has access to, but...__
 
-Infinite scroll has no fixed page count, so post-check drops are a non-issue.
+_Infinite scroll has no fixed page count, so post-check drops are a non-issue._
 
 ---
 
@@ -646,7 +656,7 @@ Originally we started out with 1 big model.
 
 Multiple services and teams sharing 1 model
 
-<img class="illo" src="assets/image-files.svg" alt="" />
+<img class="illo" src="assets/document-warning.svg" alt="" />
 
 Note:
 But as the app grew, we started to develop Hub across multiple sub-apps and the model became difficult to manage across teams.
@@ -702,7 +712,6 @@ Note:
 ### Results
 
 - Each app manages its own FGA domain
-- A change in one module gets tested against all apps
 - The new model is rolled out to all apps
 
 ---
