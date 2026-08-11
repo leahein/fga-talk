@@ -600,7 +600,7 @@ Avoid list operations in FGA
 Note:
 The next thing we learned, in a bit less of an exciting way, is that
 
-**List** is expensive.
+**List** is expensive. Avoid for large result sets.
 
 ---
 
@@ -776,7 +776,7 @@ Note:
 
 Note:
 - Control fan-out with our config and model design
-- Avoid list operations when we can
+- Avoid list operations for large result sets, when we can
 - Use modules to separate concerns
 
 Overall, these improvements have gotten us to a stable and maintainable authorization system...for now.
