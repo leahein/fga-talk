@@ -141,7 +141,7 @@ Manage comprehensive checks effectively.
 
 ### Then
 
-Each check must confirm access to every prerequisite
+Each check must also include all pre-requisite checks
 
 Note:
 **It's not enough to have access to the resource.**
@@ -168,7 +168,11 @@ Say a user owns an artifact. That's not enough.
 - AND access to the app that produced it 
 - AND are they a member from the org **aka company**?
 
-**Why?** This is so that if a user is removed from an org / company or a client, or app access is removed, we can simply remove one tuple relationship, that will cascade and remove access to all artifacts.
+**Why?** This is so that:
+
+1. if a user is removed as a member of an org, for example
+2. we can simply remove one tuple relationship
+3. that will cascade and **remove access to all artifacts**.
 
 
 ---
@@ -195,14 +199,11 @@ After a routine model deploy....
 <div style="text-align: center; font-size: 3em">💥</div>
 
 Note:
-...our FGA service went down and couldn't come back up.
-
----
+...our FGA service went down and couldn't come back up, causing an outage.
 
 - Hub inaccessible to all users
 - All FGA pods crashing
-- Pods restarting in a loop
-
+- And restarting in a loop
 
 ---
 
@@ -210,23 +211,52 @@ Note:
 
 OpenFGA was exhausting all DB connections
 
-Note:
-Connections would max out → crash pods → restart
-
 ---
 
 #### Causal Chain
 
 ---
 
-##### Deployment
+##### System
 
-- **Pods**: 3
-- **DB Instance Size**: Small
-- **Configuration**: Default
+<!-- .slide: class="deployment-diagram" -->
+
+```mermaid
+flowchart LR
+    APP{{"Hub"}}
+    subgraph STACK [" "]
+        direction TB
+        subgraph FGA ["OpenFGA"]
+            direction LR
+            F1["Fga pod"]
+            F2["Fga pod"]
+            F3["Fga pod"]
+            FGADB[("Fga DB<br/><code>(small)</code>")]
+            F1 --> FGADB
+            F2 --> FGADB
+            F3 --> FGADB
+        end
+        HUBDB[("Hub DB")]
+    end
+
+    APP --> FGA
+    APP --> HUBDB
+
+    style STACK fill:none,stroke:none
+
+    classDef pod fill:#1a2430,stroke:#edff00,stroke-width:2px,color:#d5d5d7
+    classDef db fill:#3b3f2b,stroke:#00d4aa,stroke-width:2px,color:#d5d5d7
+    classDef app fill:#1a2430,stroke:#edff00,stroke-width:3px,color:#ffffff,font-size:28px,padding:20px
+    class F1,F2,F3 pod
+    class APP app
+    class HUBDB,FGADB db
+```
 
 Note:
-First, let's understand the state of our deployment at the time.
+First, let's understand the state of our system at the time.
+
+- 3 OpenFGA pods
+- Small Postgres database instance
 
 ---
 
@@ -241,13 +271,16 @@ CHECK_QUERY_CACHE_ENABLED              = false
 
 _Version: 1.15.1_
 
+Note:
+Default OpenFGA configuration
+
 ---
 
 
 1. A more complex model increased the number of connections needed to resolve a check
 
 Note:
-Okay, so the first thing that happened was we deployed a more complex model that...
+So the more complex model...
 
 ---
 
@@ -299,7 +332,7 @@ mindmap
 Note:
 One check fans out into the owner check plus two org-membership subtrees (one via app, one direct), each an OR over user/admin/manager.
 
-**Every branch is a separate read holding a connection.**
+**Each check requiring a database connection.**
 
 ---
 
@@ -388,7 +421,9 @@ Happening 100 times.
 > To resolve a relation, a check opens a connection and holds that connection open while it dispatches child checks to resolve the nested relations.
 
 Note:
-Each check therefore holds several connections at once (its own cursor plus every child it's waiting on).
+Now we first need to understand how a check is resolved by OpenFGA.
+
+_Each check therefore holds several connections at once (its own cursor plus every child it's waiting on)._
 
 ---
 
@@ -436,6 +471,9 @@ The cycle repeats
 
 ### Now
 
+Note:
+So what did we do to correct this.
+
 ---
 
 #### Infra
@@ -475,7 +513,7 @@ The pool settings just keep connections warm.
 
 #### Model
 
-- App access was re-checked for every object in a batch check
+- Previously, app access was re-checked for every item in a batch check
 - Factored out into a new relation that skips the app subtree
 
 ```diff
@@ -489,7 +527,7 @@ The pool settings just keep connections warm.
 ```
 
 Note:
-Say a batch check contains 100 items, we would check the same app access 100 times.
+So say a batch check contains 100 artifacts, we would **check the same app access, 100 times**.
 
 ---
 
@@ -527,7 +565,8 @@ async def can_access_artifacts():
                     user="user:john",
                     relation="can_access_within_app",
                     object=f"artifact:{id}",
-                )
+                ),
+                ...
             ]
         )
     )
@@ -536,7 +575,7 @@ async def can_access_artifacts():
 Note:
 We **still** do a 1-time check if you can access the app, instead of checking it for every artifact. Then batch check the artifacts with the new relation.
 
-**And of course**, for any other repeated check branches across batch checks, the cache will absorb them.
+_And of course, for any other repeated check branches across batch checks, the cache will absorb them._
 
 ---
 
@@ -568,10 +607,13 @@ The next thing we learned, in a bit less of an exciting way, is that
 ### Then
 
 1. List objects in FGA
-2. Filter in the app database
+2. Filter IDs in the app database
 
 Note:
-Initially, to display all user artifacts, we listed the objects in FGA first, because the total number of user artifacts is low.
+Initially, because the total number of user artifacts was low,
+
+- We used FGA to **first** list the artifacts the user has access to.
+- Then use IDs to filter the artifacts in the app database.
 
 ---
 
@@ -580,9 +622,12 @@ List results are truncated
 <img class="illo" src="assets/guidelines.svg" alt="" />
 
 Note:
-But as the user's artifacts grew, we ran into list limits and artifacts would be truncated.
+But as the user's artifacts grew, we ran into OpenFGA list limits with
+
 - **list deadline limit**
 - **max results limits**
+
+So artifacts would be truncated.
 
 Had to work around them.
 
@@ -616,12 +661,17 @@ Note:
 
 2. **Then** batch check access against OpenFGA
 
+Note:
+...essentially reversing the order.
+
 ---
 
-Use database pagination to limit the number of checks per batch checks
+Use database pagination to reduce the number of items per batch checks
 
 Note:
 To further narrow it down...
+
+..to limit the number of artifacts fetched from our app database, reducing the number of items to check per batch check request.
 
 ---
 
@@ -656,7 +706,7 @@ Originally we started out with 1 big model.
 
 ---
 
-Multiple services and teams sharing 1 model
+Multiple apps and teams sharing 1 model
 
 <img class="illo" src="assets/document-warning.svg" alt="" />
 
@@ -725,11 +775,11 @@ Note:
 3. **Use Modules**
 
 Note:
-- Control fan-out with your config and model design
-- Avoid list operations when you can
+- Control fan-out with our config and model design
+- Avoid list operations when we can
 - Use modules to separate concerns
 
-Overall, these improvements and patterns have gotten us to a stable and maintainable authorization system...for now.
+Overall, these improvements have gotten us to a stable and maintainable authorization system...for now.
 
 ---
 
