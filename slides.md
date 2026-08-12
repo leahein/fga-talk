@@ -2,19 +2,6 @@
 
 ---
 
-## Summary
-
-- About Kepler
-- Why OpenFGA
-- From Simple to Scalable
-
-Note:
-- The context of Kepler
-- Why we use OpenFGA
-- The 3 ways in which we started out simple and how we evolved to a more scalable solution.
-
----
-
 ### Leah Einhorn
 
 
@@ -25,6 +12,19 @@ _Authentication & Authorization_
   <br />
   <a href="https://www.linkedin.com/in/leaheinhorn/">linkedin.com/in/leaheinhorn</a>
 </p>
+
+---
+
+## Summary
+
+- About Kepler
+- Why OpenFGA
+- From Simple to Scalable
+
+Note:
+- The context of Kepler
+- Why we use OpenFGA
+- The 3 ways in which we started out simple and how we evolved to a more scalable solution.
 
 ---
 
@@ -49,7 +49,7 @@ Serving Fortune 500 clients
 </div>
 
 Note:
-Kepler is a part of **kyu**, a global network of agencies
+Kepler is a part of **kyu**, a global collection of agencies
 
 ---
 
@@ -189,7 +189,7 @@ type artifact
 Note:
 And this was fine... until we increased the complexity of the model to something such as this. 
 
-After a routine model deploy....
+After a routine deploy of such a model....
 
 
 ---
@@ -307,7 +307,7 @@ type artifact
 ```
 
 Note:
-`artifact.can_access` check is a nested AND, and member from org is a nested OR.
+One check fans out into the owner check plus two org-membership subtrees (one via app, one direct), each an OR over user/admin/manager.
 
 ---
 
@@ -330,7 +330,6 @@ mindmap
 ```
 
 Note:
-One check fans out into the owner check plus two org-membership subtrees (one via app, one direct), each an OR over user/admin/manager.
 
 **Each check requiring a database connection.**
 
@@ -339,7 +338,7 @@ One check fans out into the owner check plus two org-membership subtrees (one vi
 2. A Batch Check fans out into many concurrent checks
 
 Note:
-**So we weren't doing the fan out once, but in a batch check.**
+**We weren't doing the check once, but in a batch check, of many concurrent checks.**
 
 All of which are competing for the same pool.
 
@@ -430,7 +429,7 @@ _Each check therefore holds several connections at once (its own cursor plus eve
 3. Parents are stuck waiting on child checks that can't get a connection
 
 Note:
-**Since the pool is maxed out...**
+**But the pool is maxed out so...**
 
 ---
 
@@ -450,7 +449,8 @@ At this point, checks can't resolve and start failing since they are exceeding t
 Note:
 In the meantime --
 
-- Healthcheck attempts to ping the DB
+- Kubernetes is running healthchecks on the pods
+- OpenFGA healthcheck attempts to ping the DB
 - Connections are maxed out
 
 ---
@@ -652,7 +652,7 @@ Note:
 **This narrows down the number of objects.**
 
 
-- But it's not enough to filter on the user's artifacts.
+- It's not enough to filter on the user's artifacts.
 - Because an artifact can also be shared with everyone working on the client.
 - So the visibility of whether it's public / private is stored in the app database.
 - We query for both the user's artifacts and the public artifacts for the client.
@@ -777,7 +777,7 @@ Note:
 Note:
 - Control fan-out with our config and model design
 - Avoid list operations for large result sets, when we can
-- Use modules to separate concerns
+- As the app grows, use modules to separate concerns
 
 Overall, these improvements have gotten us to a stable and maintainable authorization system...for now.
 
