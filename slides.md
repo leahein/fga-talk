@@ -677,8 +677,8 @@ To further narrow it down...
 
 ### Results
 
+- Tradeoff: We tie the app database model to user access
 - No management of FGA list limits
-- Pagination keeps the batch check size manageable
 
 Note:
 __The tradeoff to this approach is that we tie the app database model to what the user has access to, but...__
@@ -722,6 +722,7 @@ But as the app grew, we started to develop Hub across multiple sub-apps and the 
 - A change to any module rolls out to every FGA-consuming app
 
 Note:
+**We broke it out so that**...
 The model is split into modules, one per sub-app. 
 
 Since they compose into a single model, a change to any module changes the model, so they must then be rolled out to every app.
@@ -765,6 +766,9 @@ Note:
 
 - Each app handles its own FGA domain
 - The new model is rolled out to all apps
+
+Note:
+Still though a change to any module is rolled out to all apps
 
 ---
 
