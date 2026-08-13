@@ -24,7 +24,7 @@ _Authentication & Authorization_
 Note:
 - The context of Kepler
 - Why we use OpenFGA
-- The 3 ways in which we started out simple and how we evolved to a more scalable solution.
+- The 3 ways in which we started out simple with OpenFGA and how we scaled it over time.
 
 ---
 
@@ -86,7 +86,7 @@ Note:
 
 Similar to AWS IAM.
 
-This works well in our core system, where a defined set of static policies can isolate client data.
+This works well in our core system, **where a defined set of static policies can isolate client data**.
 
 ---
 
@@ -338,9 +338,9 @@ Note:
 2. A Batch Check fans out into many concurrent checks
 
 Note:
-**We weren't doing the check once, but in a batch check, of many concurrent checks.**
+We weren't doing the check once, **but in a batch check, of many concurrent checks.**
 
-All of which are competing for the same pool.
+**All of which are competing for the same pool.**
 
 ---
 
@@ -429,7 +429,7 @@ _Each check therefore holds several connections at once (its own cursor plus eve
 3. Parents are stuck waiting on child checks that can't get a connection
 
 Note:
-**But the pool is maxed out so...**
+**The pool maxes out so...**
 
 ---
 
@@ -513,8 +513,8 @@ The pool settings just keep connections warm.
 
 #### Model
 
-- Previously, app access was re-checked for every item in a batch check
-- Factored out into a new relation that skips the app subtree
+- Previously, app access was re-checked for every artifact in a batch check
+- Created a new check that factors out the app sub-tree
 
 ```diff
  type artifact
@@ -573,7 +573,7 @@ async def can_access_artifacts():
 ```
 
 Note:
-We **still** do a 1-time check if you can access the app, instead of checking it for every artifact. Then batch check the artifacts with the new relation.
+We **still** do a 1-time check if you can access the app, instead of checking it for every artifact. Then batch check the artifacts with the new relation, so we no longer do that 100 times.
 
 _And of course, for any other repeated check branches across batch checks, the cache will absorb them._
 
@@ -722,8 +722,10 @@ But as the app grew, we started to develop Hub across multiple sub-apps and the 
 - A change to any module rolls out to every FGA-consuming app
 
 Note:
-**We broke it out so that**...
-The model is split into modules, one per sub-app. 
+We still share core logic, so we want a single model.
+
+**So we broke it out so that**...
+It's split into modules, one per sub-app. 
 
 Since they compose into a single model, a change to any module changes the model, so they must then be rolled out to every app.
 
@@ -780,7 +782,7 @@ Still though a change to any module is rolled out to all apps
 
 Note:
 - Control fan-out with our config and model design
-- Avoid list operations for large result sets, when we can
+- Avoid list operations for large result sets
 - As the app grows, use modules to separate concerns
 
 Overall, these improvements have gotten us to a stable and maintainable authorization system...for now.
